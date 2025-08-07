@@ -78,6 +78,9 @@ RUN apt-get update && \
     #
     # --- 安装 Bundler ---
     #
+    update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX && \
+    locale-gen en_US.UTF-8 && \
+    DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales && \
     gem install --no-document bundler -v 1.17.3 && \
     #
     # --- 清理 ---
