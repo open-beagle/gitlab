@@ -40,7 +40,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-amd64
           build-args: |
-            BASE=ubuntu:xenial
+            BASE=ubuntu:focal
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -55,7 +55,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-arm64
           build-args: |
-            BASE=ubuntu:xenial
+            BASE=ubuntu:focal
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

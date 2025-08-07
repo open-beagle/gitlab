@@ -16,6 +16,21 @@ GEM_CACHE_DIR="${GITLAB_BUILD_DIR}/cache"
 GOROOT=/tmp/go
 PATH=${GOROOT}/bin:$PATH
 
+# 1. 检测系统架构并设置Go语言对应的架构名称
+MACHINE_ARCH=$(uname -m)
+case "${MACHINE_ARCH}" in
+    x86_64)
+        GO_ARCH="amd64"
+        ;;
+    aarch64)
+        GO_ARCH="arm64"
+        ;;
+    *)
+        echo "不支持的架构: ${MACHINE_ARCH}"
+        exit 1
+        ;;
+esac
+
 export GOROOT PATH
 
 BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake paxctl \
@@ -75,8 +90,8 @@ GITLAB_PAGES_VERSION=${GITLAB_PAGES_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_
 
 # download golang
 echo "Downloading Go ${GOLANG_VERSION}..."
-wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-amd64.tar.gz -P ${GITLAB_BUILD_DIR}/
-tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-amd64.tar.gz -C /tmp/
+wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -P ${GITLAB_BUILD_DIR}/
+tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -C /tmp/
 
 # install gitlab-shell
 echo "Downloading gitlab-shell v.${GITLAB_SHELL_VERSION}..."
@@ -133,7 +148,7 @@ chown -R ${GITLAB_USER}: ${GITLAB_GITALY_INSTALL_DIR}
 rm -rf ${GITLAB_GITALY_BUILD_DIR}
 
 # remove go
-rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-amd64.tar.gz ${GOROOT}
+rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
 
 # Fix for rebase in forks 
 echo "Linking $(command -v gitaly-ssh) to /"

@@ -16,7 +16,7 @@ git merge 11.11.3
 # amd64
 docker buildx build \
   --platform linux/amd64 \
-  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ubuntu:xenial-amd64 \
+  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ubuntu:20.04-amd64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:11.11.3-amd64 \
   -f .beagle/Dockerfile \
   --load .
