@@ -45,9 +45,13 @@ exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
     "$@"
   else
-    sudo -HEu ${GITLAB_USER} "$@"
+    sudo -HEiu ${GITLAB_USER} "$@"
   fi
 }
+
+# ---> 核心修正 1: 为整个脚本的 root 环境加载 RVM <---
+# 这一行确保了后续所有直接执行的命令(如 ./bin/compile)都能找到ruby
+source /usr/local/rvm/scripts/rvm
 
 # install build dependencies for gem installation
 apt-get update
