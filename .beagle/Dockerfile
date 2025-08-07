@@ -77,14 +77,8 @@ RUN apt-get update && \
     curl -sSL https://get.rvm.io | bash -s stable --ruby=${RUBY_VERSION} && \
     # 将 rvm 的 ruby 设置为默认，并安装 bundler
     bash -c "source /usr/local/rvm/scripts/rvm && \
-             rvm use ${RUBY_VERSION} --default" && \
-    #
-    # --- 安装 Bundler ---
-    #
-    update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX && \
-    locale-gen en_US.UTF-8 && \
-    DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales && \
-    gem install --no-document bundler -v 1.17.3 && \
+             rvm use ${RUBY_VERSION} --default && \
+             gem install --no-document bundler -v 1.17.3" && \
     #
     # --- 清理 ---
     #
@@ -92,7 +86,7 @@ RUN apt-get update && \
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
 COPY .beagle/install.sh ${GITLAB_BUILD_DIR}/install.sh
-RUN bash ${GITLAB_BUILD_DIR}/install.sh
+RUN bash -c "source /usr/local/rvm/scripts/rvm && bash ${GITLAB_BUILD_DIR}/install.sh"
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/
 COPY entrypoint.sh /sbin/entrypoint.sh
