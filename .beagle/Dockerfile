@@ -72,6 +72,7 @@ RUN apt-get update && \
         libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
         libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev \
+        shared-mime-info \
         gawk libgpg-error-dev libassuan-dev libgpgme-dev && \
     # 安装 RVM 和 指定版本的 Ruby
     gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
