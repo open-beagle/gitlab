@@ -79,6 +79,7 @@ RUN apt-get update && \
     bash -c "source /usr/local/rvm/scripts/rvm && \
              rvm use ${RUBY_VERSION} --default && \
              gem install --no-document bundler -v 1.17.3" && \
+    echo "source /usr/local/rvm/scripts/rvm" > /etc/profile.d/rvm.sh && \
     #
     # --- 清理 ---
     #
@@ -86,7 +87,7 @@ RUN apt-get update && \
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
 COPY .beagle/install.sh ${GITLAB_BUILD_DIR}/install.sh
-RUN bash -c "source /usr/local/rvm/scripts/rvm && bash ${GITLAB_BUILD_DIR}/install.sh"
+RUN bash ${GITLAB_BUILD_DIR}/install.sh
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/
 COPY entrypoint.sh /sbin/entrypoint.sh
