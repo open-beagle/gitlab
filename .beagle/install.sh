@@ -43,9 +43,13 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
 ## Execute a command as GITLAB_USER
 exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
+    # 如果当前已经是 git 用户，直接执行，并确保 RVM 环境已加载
+    # （这一步是额外的保险，在脚本开头 source 后其实已不需要）
+    source /usr/local/rvm/scripts/rvm
     "$@"
   else
-    sudo -HEiu ${GITLAB_USER} "$@"
+    # 核心：使用 -EHu 保留环境变量，并结合 bash -c 加载RVM
+    sudo -EHu ${GITLAB_USER} bash -c "source /usr/local/rvm/scripts/rvm && exec \"$@\""
   fi
 }
 
