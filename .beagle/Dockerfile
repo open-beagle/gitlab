@@ -68,7 +68,7 @@ RUN apt-get update && \
         # Node.js 和 Yarn
         yarn gettext-base \
         # Ruby 和开发头文件
-        ruby${RUBY_VERSION} \
+        ruby${RUBY_VERSION} pax-utils \
         # Python
         python2.7-dev python-docutils \
         # 其他编译 GitLab 所需的开发库
@@ -81,6 +81,7 @@ RUN apt-get update && \
     update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX && \
     locale-gen en_US.UTF-8 && \
     DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales && \
+    paxctl -c /usr/bin/ruby${RUBY_VERSION} && \
     gem install --no-document bundler -v 1.17.3 && \
     #
     # --- 清理 ---
