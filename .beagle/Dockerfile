@@ -43,8 +43,6 @@ RUN apt-get update && \
     #
     # Git (来自 PPA)
     add-apt-repository -y ppa:git-core/ppa && \
-    # Ruby 2.5 (来自 Brightbox PPA, Focal 版本)
-    add-apt-repository -y ppa:brightbox/ruby-ng && \
     # Nginx (来自 PPA)
     add-apt-repository -y ppa:nginx/stable && \
     # PostgreSQL
@@ -68,14 +66,18 @@ RUN apt-get update && \
         nginx \
         # Node.js 和 Yarn
         yarn gettext-base \
-        # Ruby 和开发头文件
-        ruby${RUBY_VERSION} paxctl \
         # Python
         python2.7-dev python-docutils \
         # 其他编译 GitLab 所需的开发库
         libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
         libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev && \
+    # 安装 RVM 和 指定版本的 Ruby
+    gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
+    curl -sSL https://get.rvm.io | bash -s stable --ruby=${RUBY_VERSION} && \
+    # 将 rvm 的 ruby 设置为默认，并安装 bundler
+    bash -c "source /usr/local/rvm/scripts/rvm && \
+             rvm use ${RUBY_VERSION} --default" && \
     #
     # --- 安装 Bundler ---
     #

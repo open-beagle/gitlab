@@ -34,7 +34,7 @@ esac
 export GOROOT PATH
 
 BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
-  libc6-dev ruby${RUBY_VERSION}-dev \
+  libc6-dev paxctl \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
@@ -53,7 +53,6 @@ exec_as_git() {
 # Applying the mark late here does make the build usable on PaX kernels, but
 # still the build itself must be executed on a non-PaX kernel. It's done here
 # only for simplicity.
-paxctl -Cm "$(command -v ruby${RUBY_VERSION})"
 # https://en.wikibooks.org/wiki/Grsecurity/Application-specific_Settings#Node.js
 paxctl -Cm "$(command -v nodejs)"
 
