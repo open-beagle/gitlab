@@ -46,7 +46,7 @@ RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
       sudo supervisor logrotate locales curl \
       nginx openssh-server mysql-client postgresql-client redis-tools \
-      git-core gnupg2 ruby${RUBY_VERSION} ruby${RUBY_VERSION}-dev python2.7 python-docutils nodejs yarn gettext-base \
+      git-core gnupg2 ruby${RUBY_VERSION} python2.7 python-docutils nodejs yarn gettext-base \
       libmysqlclient20 libpq5 zlib1g libyaml-0-2 libssl1.0.0 \
       libgdbm3 libreadline6 libncurses5 libffi6 \
       libxml2 libxslt1.1 libcurl3 libicu55 libre2-dev tzdata unzip libimage-exiftool-perl \
@@ -54,7 +54,7 @@ RUN apt-get update \
  && update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX \
  && locale-gen en_US.UTF-8 \
  && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales \
- && gem install --no-document bundler -v 1.17.3 \
+ && gem${RUBY_VERSION} install --no-document bundler -v 1.17.3 \
  && rm -rf /var/lib/apt/lists/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/

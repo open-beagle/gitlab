@@ -26,6 +26,6 @@ docker buildx build \
   --platform linux/arm64 \
   --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ubuntu:xenial-arm64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:11.11.3-arm64 \
-  -f .beagle/Dockerfile \
+  -f .beagle/arm64.Dockerfile \
   --load .
 ```
