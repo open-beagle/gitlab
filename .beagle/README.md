@@ -13,6 +13,12 @@ git merge 11.11.3
 ## build
 
 ```bash
+# debug
+docker run -it --rm \
+-v ${PWD}:/go/src/github.com/open-beagle/gitlab \
+registry.cn-qingdao.aliyuncs.com/wod/ubuntu:20.04-amd64 \
+bash
+
 # amd64
 docker buildx build \
   --platform linux/amd64 \

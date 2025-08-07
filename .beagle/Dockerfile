@@ -29,7 +29,8 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
 
 # --- 构建依赖安装 ---
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get install --no-install-recommends -y \
         # 基础工具
         wget curl gnupg2 ca-certificates apt-transport-https software-properties-common \
         # 核心依赖
@@ -42,8 +43,6 @@ RUN apt-get update && \
     #
     # Git (来自 PPA)
     add-apt-repository -y ppa:git-core/ppa && \
-    # Ruby 2.5 (来自 Brightbox PPA, Focal 版本)
-    add-apt-repository -y ppa:brightbox/ruby-ng && \
     # Nginx (来自 PPA)
     add-apt-repository -y ppa:nginx/stable && \
     # PostgreSQL
@@ -75,6 +74,11 @@ RUN apt-get update && \
         libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
         libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev && \
+    gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
+        curl -sSL https://get.rvm.io | bash -s stable && \
+        bash -c "source /usr/local/rvm/scripts/rvm && \
+                rvm install ${RUBY_VERSION} && \
+                rvm use ${RUBY_VERSION} --default" && \
     #
     # --- 安装 Bundler ---
     #
