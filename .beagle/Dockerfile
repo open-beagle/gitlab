@@ -43,6 +43,8 @@ RUN apt-get update && \
     #
     # Git (来自 PPA)
     add-apt-repository -y ppa:git-core/ppa && \
+    # Ruby 2.5 (来自 Brightbox PPA, Focal 版本)
+    add-apt-repository -y ppa:brightbox/ruby-ng && \
     # Nginx (来自 PPA)
     add-apt-repository -y ppa:nginx/stable && \
     # PostgreSQL
@@ -67,25 +69,19 @@ RUN apt-get update && \
         # Node.js 和 Yarn
         yarn gettext-base \
         # Ruby 和开发头文件
-        ruby${RUBY_VERSION} pax-utils \
+        ruby${RUBY_VERSION} \
         # Python
         python2.7-dev python-docutils \
         # 其他编译 GitLab 所需的开发库
         libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
         libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev && \
-    gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
-        curl -sSL https://get.rvm.io | bash -s stable && \
-        bash -c "source /usr/local/rvm/scripts/rvm && \
-                rvm install ${RUBY_VERSION} && \
-                rvm use ${RUBY_VERSION} --default" && \
     #
     # --- 安装 Bundler ---
     #
     update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX && \
     locale-gen en_US.UTF-8 && \
     DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales && \
-    paxctl -c /usr/bin/ruby${RUBY_VERSION} && \
     gem install --no-document bundler -v 1.17.3 && \
     #
     # --- 清理 ---
