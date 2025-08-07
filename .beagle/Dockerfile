@@ -69,7 +69,7 @@ RUN apt-get update && \
         # Node.js 和 Yarn
         yarn gettext-base \
         # Ruby 和开发头文件
-        ruby${RUBY_VERSION} \
+        ruby${RUBY_VERSION} paxctl \
         # Python
         python2.7-dev python-docutils \
         # 其他编译 GitLab 所需的开发库

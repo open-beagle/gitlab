@@ -33,7 +33,7 @@ esac
 
 export GOROOT PATH
 
-BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake paxctl \
+BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
   libc6-dev ruby${RUBY_VERSION}-dev \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
@@ -49,10 +49,6 @@ exec_as_git() {
   fi
 }
 
-# install build dependencies for gem installation
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
-
 # PaX-mark ruby
 # Applying the mark late here does make the build usable on PaX kernels, but
 # still the build itself must be executed on a non-PaX kernel. It's done here
@@ -60,6 +56,10 @@ DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUIL
 paxctl -Cm "$(command -v ruby${RUBY_VERSION})"
 # https://en.wikibooks.org/wiki/Grsecurity/Application-specific_Settings#Node.js
 paxctl -Cm "$(command -v nodejs)"
+
+# install build dependencies for gem installation
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
 
 # remove the host keys generated during openssh-server installation
 rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
