@@ -32,6 +32,9 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         # 基础工具
         wget curl gnupg2 ca-certificates apt-transport-https software-properties-common \
+        # 核心依赖
+        sudo supervisor logrotate locales curl \
+        openssh-server mysql-client postgresql-client redis-tools \
         # 编译工具
         build-essential git python2.7 && \
     #
@@ -58,6 +61,10 @@ RUN apt-get update && \
     #
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        # Git
+        git-core gnupg2 \
+        # Nginx
+        nginx \
         # Node.js 和 Yarn
         yarn gettext-base \
         # Ruby 和开发头文件
