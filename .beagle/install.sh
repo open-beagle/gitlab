@@ -171,6 +171,11 @@ exec_as_git sed -i 's/db:reset/db:setup/' ${GITLAB_INSTALL_DIR}/lib/tasks/gitlab
 
 cd ${GITLAB_INSTALL_DIR}
 
+# --- 在这里加入针对 gpgme 的修复 ---
+echo "INFO: Configuring bundler to use system libraries for gpgme gem..."
+exec_as_git bundle config build.gpgme --use-system-libraries
+# --- 修复结束 ---
+
 # --- ADD THE FIX HERE ---
 # Fix for the yanked mimemagic gem version
 echo "INFO: Updating mimemagic gem version in Gemfile.lock to a non-yanked version..."
