@@ -36,6 +36,8 @@ RUN apt-get update && \
         # 核心依赖
         sudo supervisor logrotate locales curl \
         openssh-server mysql-client postgresql-client redis-tools \
+        # rake运行时依赖
+        libgpgme11 \
         # 编译工具
         build-essential git python2.7 && \
     #
