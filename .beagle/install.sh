@@ -105,8 +105,19 @@ exec_as_git echo "rvm_project_rvmrc=0" >> ${GITLAB_HOME}/.rvmrc
 
 cat >> ${GITLAB_HOME}/.profile <<EOF
 PATH=/usr/local/sbin:/usr/local/bin:\$PATH
+
+# NVM (Node Version Manager)
+# --------------------------
+export NVM_DIR="\$HOME/.nvm"
+# This loads nvm
+[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+# This loads nvm bash_completion
+[ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
+
 # RVM is installed in the user's home directory
 source \${HOME}/.rvm/scripts/rvm
+
+# Golang
 GOROOT=/tmp/go
 PATH=\${GOROOT}/bin:\$PATH
 EOF
