@@ -70,6 +70,7 @@ docker run \
     --rm \
     --volume ./.tmp/gitlab:/home/git/data \
     -v ./assets/runtime:/etc/docker-gitlab/runtime \
+    -v ./.tmp/log:/var/log/gitlab \
     --publish 10022:22 \
     --publish 10080:80 \
     --env 'GITLAB_PORT=10080' \

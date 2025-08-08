@@ -426,7 +426,7 @@ cat > /etc/supervisor/conf.d/gitaly.conf <<EOF
 priority=5
 directory=${GITLAB_GITALY_INSTALL_DIR}
 environment=HOME=${GITLAB_HOME}
-command=/usr/local/bin/gitaly ${GITLAB_GITALY_INSTALL_DIR}/config.toml
+command=/bin/bash -l -c "/usr/local/bin/gitaly ${GITLAB_GITALY_INSTALL_DIR}/config.toml"
 user=git
 autostart=true
 autorestart=true
