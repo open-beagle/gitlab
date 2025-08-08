@@ -38,26 +38,18 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
-  gettext libkrb5-dev"
+  gettext libkrb5-dev libgmp-dev"
 
 ## Execute a command as GITLAB_USER
 exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
-    # 如果当前已经是 git 用户，直接执行
     "$@"
   else
-    # 这是在 Shell 脚本中安全地将一系列参数传递给子 Shell 的标准、防弹模式。
-    # bash -c '...' sh-as-git "$@"
-    # '...' 是要执行的脚本
-    # sh-as-git 是一个占位符，成为子 Shell 的 $0
-    # "$@" 在最后，将所有参数原封不动地传递给子 Shell
-    sudo -EHu ${GITLAB_USER} bash -c 'source /usr/local/rvm/scripts/rvm && exec "$@"' sh-as-git "$@"
+    # 使用 -l (login) 标志启动一个登录式的shell，
+    # 这会强制加载 /home/git/.profile 文件，从而初始化RVM环境
+    sudo -HEu ${GITLAB_USER} bash -l -c 'exec "$@"' sh-as-git "$@"
   fi
 }
-
-# ---> 核心修正 1: 为整个脚本的 root 环境加载 RVM <---
-# 这一行确保了后续所有直接执行的命令(如 ./bin/compile)都能找到ruby
-source /usr/local/rvm/scripts/rvm
 
 # install build dependencies for gem installation
 apt-get update
@@ -77,9 +69,46 @@ rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 adduser --disabled-login --gecos 'GitLab' ${GITLAB_USER}
 passwd -d ${GITLAB_USER}
 
-# set PATH (fixes cron job PATH issues)
+# install node.js
+exec_as_git bash -c "
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+"
+exec_as_git bash -c '
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm install 8
+'
+
+# install ruby
+exec_as_git bash -c "
+  gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
+  curl -sSL https://get.rvm.io | bash -s stable --ruby=${RUBY_VERSION} --autolibs=read-only
+"
+# install ruby
+exec_as_git bash -c "
+  gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
+  curl -sSL https://get.rvm.io | bash -s stable --autolibs=read-only
+"
+exec_as_git bash -c "
+  source ${GITLAB_HOME}/.rvm/scripts/rvm
+  # 先安装 GitLab 主程序需要的 2.5.3
+  rvm install ${RUBY_VERSION}
+  # 将 2.5.3 设置为默认版本
+  rvm use ${RUBY_VERSION} --default
+  # 安装 bundler
+  gem install --no-document bundler -v 1.17.3
+"
+
+# ---> 在这里加入用户专属的 RVM 配置 <---
+echo "INFO: Configuring RVM to disable project .ruby-version files for the '${GITLAB_USER}' user..."
+exec_as_git echo "rvm_project_rvmrc=0" >> ${GITLAB_HOME}/.rvmrc
+
 cat >> ${GITLAB_HOME}/.profile <<EOF
 PATH=/usr/local/sbin:/usr/local/bin:\$PATH
+# RVM is installed in the user's home directory
+source \${HOME}/.rvm/scripts/rvm
+GOROOT=/tmp/go
+PATH=\${GOROOT}/bin:\$PATH
 EOF
 
 # configure git for ${GITLAB_USER}
@@ -91,7 +120,7 @@ exec_as_git git config --global receive.advertisePushOptions true
 
 # shallow clone gitlab-ce
 echo "Cloning gitlab-ce v.${GITLAB_VERSION}..."
-exec_as_git git clone -q -b v${GITLAB_VERSION} --depth 1 ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
+exec_as_git git clone -q --depth 1 --branch v${GITLAB_VERSION} ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
 
 GITLAB_SHELL_VERSION=${GITLAB_SHELL_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_SHELL_VERSION)}
 GITLAB_WORKHORSE_VERSION=${GITLAB_WORKHOUSE_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_WORKHORSE_VERSION)}
@@ -112,12 +141,16 @@ chown -R ${GITLAB_USER}: ${GITLAB_SHELL_INSTALL_DIR}
 
 cd ${GITLAB_SHELL_INSTALL_DIR}
 exec_as_git cp -a config.yml.example config.yml
+
+# 检查 ./bin/compile 是否存在且可执行
 if [[ -x ./bin/compile ]]; then
   echo "Compiling gitlab-shell golang executables..."
-  ./bin/compile
-  rm -rf go_build
+  # 以 git 用户身份运行编译
+  exec_as_git ./bin/compile
 fi
-./bin/install
+
+# 以 git 用户身份运行安装
+exec_as_git ./bin/install
 
 # remove unused repositories directory created by gitlab-shell install
 rm -rf ${GITLAB_HOME}/repositories
@@ -145,8 +178,14 @@ rm -rf ${GITLAB_PAGES_BUILD_DIR}
 echo "Downloading gitaly v.${GITALY_SERVER_VERSION}..."
 git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
 
+# ---> 核心修正：让当前的 root 用户加载刚刚为 git 用户安装好的 RVM 环境 <---
+# 这一步至关重要，它让 root 也能找到 rvm 命令
+echo "INFO: Sourcing RVM environment for the root user..."
+source "${GITLAB_HOME}/.rvm/scripts/rvm"
+
 # install gitaly
-make -C ${GITLAB_GITALY_BUILD_DIR} install
+# 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
+bash -c "rvm use ${RUBY_VERSION} && make -C ${GITLAB_GITALY_BUILD_DIR} install"
 mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
 cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
 cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
@@ -188,7 +227,7 @@ if [[ -d ${GEM_CACHE_DIR} ]]; then
   chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
 fi
 
-exec_as_git bundle install -j"$(nproc)" --deployment --without development test aws
+exec_as_git bundle install --deployment --without development test aws
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}

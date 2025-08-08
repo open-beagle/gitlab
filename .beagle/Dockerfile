@@ -7,7 +7,7 @@ ARG VCS_REF
 ARG VERSION=11.11.3
 
 ENV GITLAB_VERSION=${VERSION} \
-    RUBY_VERSION=2.5.3 \
+    RUBY_VERSION=2.5.8 \
     GOLANG_VERSION=1.12.6 \
     GITLAB_SHELL_VERSION=9.1.0 \
     GITLAB_WORKHORSE_VERSION=8.7.0 \
@@ -48,11 +48,6 @@ RUN apt-get update && \
     # PostgreSQL
     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
     echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ focal-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
-    # node.js
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && \
-    \. "$HOME/.nvm/nvm.sh" && \
-    nvm install 8 && \
-    # yarn
     wget --quiet -O - https://dl.yarnpkg.com/debian/pubkey.gpg  | apt-key add -  && \
     echo 'deb https://dl.yarnpkg.com/debian/ stable main' > /etc/apt/sources.list.d/yarn.list && \
     #
@@ -64,7 +59,7 @@ RUN apt-get update && \
         git-core gnupg2 \
         # Nginx
         nginx \
-        # Node.js 和 Yarn
+        # Yarn
         yarn gettext-base \
         # Python
         python2.7-dev python-docutils \
@@ -74,15 +69,6 @@ RUN apt-get update && \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev \
         shared-mime-info \
         gawk libgpg-error-dev libassuan-dev libgpgme-dev && \
-    # 安装 RVM 和 指定版本的 Ruby
-    gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
-    curl -sSL https://get.rvm.io | bash -s stable --ruby=${RUBY_VERSION} && \
-    # 将 rvm 的 ruby 设置为默认，并安装 bundler
-    bash -c "source /usr/local/rvm/scripts/rvm && \
-             rvm use ${RUBY_VERSION} --default && \
-             gem install --no-document bundler -v 1.17.3" && \
-    echo "source /usr/local/rvm/scripts/rvm" > /etc/profile.d/rvm.sh && \
-    #
     # --- 清理 ---
     #
     rm -rf /var/lib/apt/lists/* /tmp/*
