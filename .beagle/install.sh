@@ -189,6 +189,15 @@ rm -rf ${GITLAB_PAGES_BUILD_DIR}
 echo "Downloading gitaly v.${GITALY_SERVER_VERSION}..."
 git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
 
+# --- 关键修复：在 make 之前，强制更新 Gitaly 的 grpc gem 版本 ---
+echo "INFO: Hacking Gitaly's Gemfile.lock to update grpc for ARM64 compatibility..."
+cd ${GITLAB_GITALY_BUILD_DIR}/ruby
+# 以 git 用户身份执行 bundle lock --update
+# 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
+exec_as_git bundle lock --update grpc
+cd ../../
+# --- 修复结束 ---
+
 # ---> 核心修正：让当前的 root 用户加载刚刚为 git 用户安装好的 RVM 环境 <---
 # 这一步至关重要，它让 root 也能找到 rvm 命令
 echo "INFO: Sourcing RVM environment for the root user..."
