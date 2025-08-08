@@ -371,7 +371,7 @@ cat > /etc/supervisor/conf.d/unicorn.conf <<EOF
 priority=10
 directory=${GITLAB_INSTALL_DIR}
 environment=HOME=${GITLAB_HOME}
-command=bundle exec unicorn_rails -c ${GITLAB_INSTALL_DIR}/config/unicorn.rb -E ${RAILS_ENV}
+command=/bin/bash -l -c "bundle exec unicorn_rails -c ${GITLAB_INSTALL_DIR}/config/unicorn.rb -E ${RAILS_ENV}"
 user=git
 autostart=true
 autorestart=true
@@ -386,12 +386,12 @@ cat > /etc/supervisor/conf.d/sidekiq.conf <<EOF
 priority=10
 directory=${GITLAB_INSTALL_DIR}
 environment=HOME=${GITLAB_HOME}
-command=bundle exec sidekiq -c {{SIDEKIQ_CONCURRENCY}}
-  -C ${GITLAB_INSTALL_DIR}/config/sidekiq_queues.yml
-  -e ${RAILS_ENV}
-  -t {{SIDEKIQ_SHUTDOWN_TIMEOUT}}
-  -P ${GITLAB_INSTALL_DIR}/tmp/pids/sidekiq.pid
-  -L ${GITLAB_INSTALL_DIR}/log/sidekiq.log
+command=/bin/bash -l -c "bundle exec sidekiq -c {{SIDEKIQ_CONCURRENCY}} \
+  -C ${GITLAB_INSTALL_DIR}/config/sidekiq_queues.yml \
+  -e ${RAILS_ENV} \
+  -t {{SIDEKIQ_SHUTDOWN_TIMEOUT}} \
+  -P ${GITLAB_INSTALL_DIR}/tmp/pids/sidekiq.pid \
+  -L ${GITLAB_INSTALL_DIR}/log/sidekiq.log"
 user=git
 autostart=true
 autorestart=true
@@ -440,7 +440,7 @@ cat > /etc/supervisor/conf.d/mail_room.conf <<EOF
 priority=20
 directory=${GITLAB_INSTALL_DIR}
 environment=HOME=${GITLAB_HOME}
-command=bundle exec mail_room -c ${GITLAB_INSTALL_DIR}/config/mail_room.yml
+command=/bin/bash -l -c "bundle exec mail_room -c ${GITLAB_INSTALL_DIR}/config/mail_room.yml"
 user=git
 autostart={{GITLAB_INCOMING_EMAIL_ENABLED}}
 autorestart=true

@@ -70,12 +70,16 @@ docker run \
     --rm \
     --volume ./.tmp/gitlab:/home/git/data \
     -v ./assets/runtime:/etc/docker-gitlab/runtime \
-    --publish 10022:22 --publish 10080:80 \
-    --env 'GITLAB_PORT=10080' --env 'GITLAB_SSH_PORT=10022' \
+    --publish 10022:22 \
+    --publish 10080:80 \
+    --env 'GITLAB_PORT=10080' \
+    --env 'GITLAB_SSH_PORT=10022' \
     --env 'GITLAB_SECRETS_DB_KEY_BASE=long-and-random-alpha-numeric-string' \
     --env 'GITLAB_SECRETS_SECRET_KEY_BASE=long-and-random-alpha-numeric-string' \
     --env 'GITLAB_SECRETS_OTP_KEY_BASE=long-and-random-alpha-numeric-string' \
+    --entrypoint=bash \
     registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64
+    /sbin/entrypoint.sh app:start
 
 docker rm -f gitlab
 ```
