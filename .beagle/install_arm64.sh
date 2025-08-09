@@ -38,21 +38,7 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
-  gettext libkrb5-dev libgmp-dev cmake"
-
-# --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
-echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
-LIBGIT2_VERSION="0.28.5"
-cd /tmp
-wget -q https://github.com/libgit2/libgit2/archive/v${LIBGIT2_VERSION}.tar.gz -O libgit2.tar.gz
-tar xzf libgit2.tar.gz
-cd libgit2-${LIBGIT2_VERSION}/
-mkdir build && cd build
-# 我们将它安装到 /usr/local，这是一个标准位置
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build . --target install
-cd / # 返回根目录以避免路径问题
-# --- 修复结束 ---
+  gettext libkrb5-dev libgmp-dev"
 
 ## Execute a command as GITLAB_USER
 exec_as_git() {
@@ -68,6 +54,20 @@ exec_as_git() {
 # install build dependencies for gem installation
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
+
+# --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
+echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
+LIBGIT2_VERSION="0.28.5"
+cd /tmp
+wget -q https://github.com/libgit2/libgit2/archive/v${LIBGIT2_VERSION}.tar.gz -O libgit2.tar.gz
+tar xzf libgit2.tar.gz
+cd libgit2-${LIBGIT2_VERSION}/
+mkdir build && cd build
+# 我们将它安装到 /usr/local，这是一个标准位置
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build . --target install
+cd / # 返回根目录以避免路径问题
+# --- 修复结束 ---
 
 # PaX-mark ruby
 # Applying the mark late here does make the build usable on PaX kernels, but
