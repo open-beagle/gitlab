@@ -198,6 +198,13 @@ exec_as_git bundle lock --update grpc
 cd ../../
 # --- 修复结束 ---
 
+# --- THE FINAL FIX ---
+# Set specific CFLAGS and CXXFLAGS to override the problematic compiler options
+# inside the grpc gem's build script.
+export CFLAGS="-Wno-error"
+export CXXFLAGS="-Wno-error"
+# --- END FIX ---
+
 # ---> 核心修正：让当前的 root 用户加载刚刚为 git 用户安装好的 RVM 环境 <---
 # 这一步至关重要，它让 root 也能找到 rvm 命令
 echo "INFO: Sourcing RVM environment for the root user..."
