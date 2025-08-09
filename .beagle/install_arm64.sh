@@ -38,7 +38,7 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
-  gettext libkrb5-dev libgmp-dev"
+  gettext libkrb5-dev libgmp-dev cmake"
 
 # --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
 echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
