@@ -32,12 +32,12 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install --no-install-recommends -y \
         # 基础工具
-        wget curl gnupg2 ca-certificates apt-transport-https software-properties-common \
+        wget curl ca-certificates apt-transport-https software-properties-common \
         # 核心依赖
-        sudo supervisor logrotate locales curl \
+        sudo supervisor logrotate locales \
         openssh-server mysql-client postgresql-client redis-tools \
         # rake运行时依赖
-        libgpgme11 libmysqlclient21 \
+        libgpgme11 libmysqlclient21 gettext-base shared-mime-info gawk bison libtool sqlite3 gnupg2 \
         # 编译工具
         git python2.7 && \
     #
@@ -58,14 +58,11 @@ RUN apt-get update && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         # Git
-        git-core gnupg2 \
-        # Nginx
+        git-core \
+        # Nginx  
         nginx \
         # Yarn
-        yarn gettext-base \
-        # 其他编译 GitLab 所需的开发库
-        shared-mime-info \
-        gawk bison libtool sqlite3 && \
+        yarn && \
     # --- 清理 ---
     #
     rm -rf /var/lib/apt/lists/* /tmp/*

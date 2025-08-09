@@ -33,9 +33,9 @@ esac
 
 export GOROOT PATH
 
-BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
+BUILD_DEPENDENCIES="gcc-10 g++-10 make patch pkg-config cmake build-essential \
   python2.7-dev python-docutils \
-  libc6-dev paxctl \
+  libc6-dev \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
@@ -58,6 +58,12 @@ exec_as_git() {
 # install build dependencies for gem installation
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
+
+# --- THE FINAL ATTEMPT: Disable compiler optimizations to work around GCC bugs ---
+echo "INFO: Disabling compiler optimizations to work around GCC bugs for libgit2 build..."
+export CFLAGS="-O0 -g"
+export CXXFLAGS="-O0 -g"
+# --- END FIX ---
 
 # --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
 echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
@@ -109,9 +115,9 @@ exec_as_git bash -c "
 "
 exec_as_git bash -c "
   source ${GITLAB_HOME}/.rvm/scripts/rvm
-  # 先安装 GitLab 主程序需要的 2.5.3
+  # 先安装 GitLab 主程序需要的 2.5.8
   rvm install ${RUBY_VERSION}
-  # 将 2.5.3 设置为默认版本
+  # 将 2.5.8 设置为默认版本
   rvm use ${RUBY_VERSION} --default
   # 安装 bundler
   gem install --no-document bundler -v 1.17.3
@@ -222,6 +228,13 @@ cd ../../
 # 这一步至关重要，它让 root 也能找到 rvm 命令
 echo "INFO: Sourcing RVM environment for the root user..."
 source "${GITLAB_HOME}/.rvm/scripts/rvm"
+
+# --- THE FINAL FIX ---
+# Set specific CFLAGS and CXXFLAGS to override the problematic compiler options
+# inside the grpc gem's build script.
+export CFLAGS="-Wno-error"
+export CXXFLAGS="-Wno-error"
+# --- END FIX ---
 
 # install gitaly
 # 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
