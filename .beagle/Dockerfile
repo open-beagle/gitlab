@@ -63,14 +63,9 @@ RUN apt-get update && \
         nginx \
         # Yarn
         yarn gettext-base \
-        # Python
-        python2.7-dev python-docutils \
         # 其他编译 GitLab 所需的开发库
-        libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
-        libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
-        libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev \
         shared-mime-info \
-        gawk libgpg-error-dev libassuan-dev libgpgme-dev && \
+        gawk bison libtool sqlite3 && \
     # --- 清理 ---
     #
     rm -rf /var/lib/apt/lists/* /tmp/*
