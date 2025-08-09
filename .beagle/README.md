@@ -84,3 +84,17 @@ docker run \
 
 docker rm -f gitlab
 ```
+
+## gitlay
+
+```bash
+docker pull --platform=linux/arm64 ruby:2.5.9 && \
+docker tag ruby:2.5.9 registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.9-arm64 && \
+docker push registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.9-arm64
+
+docker run -it --rm \
+    -v $PWD:/go/src/github.com/open-beagle/gitlab \
+    -w /go/src/github.com/open-beagle/gitlab \
+    registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.9-arm64 \
+    bash .beagle/gitaly.sh
+```

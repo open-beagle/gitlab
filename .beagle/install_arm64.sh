@@ -40,6 +40,20 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
   gettext libkrb5-dev libgmp-dev"
 
+# --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
+echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
+LIBGIT2_VERSION="0.28.5"
+cd /tmp
+wget -q https://github.com/libgit2/libgit2/archive/v${LIBGIT2_VERSION}.tar.gz -O libgit2.tar.gz
+tar xzf libgit2.tar.gz
+cd libgit2-${LIBGIT2_VERSION}/
+mkdir build && cd build
+# 我们将它安装到 /usr/local，这是一个标准位置
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build . --target install
+cd / # 返回根目录以避免路径问题
+# --- 修复结束 ---
+
 ## Execute a command as GITLAB_USER
 exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
@@ -195,15 +209,12 @@ cd ${GITLAB_GITALY_BUILD_DIR}/ruby
 # 以 git 用户身份执行 bundle lock --update
 # 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
 exec_as_git bundle lock --update grpc
+# 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
+exec_as_git bundle config build.grpc --with-system-libraries
+# 告诉 bundler 在安装 rugged 时也使用系统库 
+exec_as_git bundle config build.rugged --use-system-libraries
 cd ../../
 # --- 修复结束 ---
-
-# --- THE FINAL FIX ---
-# Set specific CFLAGS and CXXFLAGS to override the problematic compiler options
-# inside the grpc gem's build script.
-export CFLAGS="-Wno-error"
-export CXXFLAGS="-Wno-error"
-# --- END FIX ---
 
 # ---> 核心修正：让当前的 root 用户加载刚刚为 git 用户安装好的 RVM 环境 <---
 # 这一步至关重要，它让 root 也能找到 rvm 命令

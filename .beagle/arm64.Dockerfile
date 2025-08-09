@@ -70,7 +70,8 @@ RUN apt-get update && \
         libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
         libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev \
         shared-mime-info \
-        gawk libgpg-error-dev libassuan-dev libgpgme-dev && \
+        gawk libgpg-error-dev libassuan-dev libgpgme-dev \
+        libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev && \
     # --- 清理 ---
     #
     rm -rf /var/lib/apt/lists/* /tmp/*
