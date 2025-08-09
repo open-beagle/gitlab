@@ -212,8 +212,6 @@ echo "INFO: Hacking Gitaly's Gemfile.lock to update grpc for ARM64 compatibility
 cd ${GITLAB_GITALY_BUILD_DIR}/ruby
 # 以 git 用户身份执行 bundle lock --update
 # 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
-exec_as_git bundle lock --update grpc
-# 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
 exec_as_git bundle config build.grpc --with-system-libraries
 # 告诉 bundler 在安装 rugged 时也使用系统库 
 exec_as_git bundle config build.rugged --use-system-libraries

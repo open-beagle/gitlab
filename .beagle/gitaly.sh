@@ -74,7 +74,7 @@ cd ${GITLAB_GITALY_BUILD_DIR}/ruby
 bundle config build.grpc --with-system-libraries
 # 告诉 bundler 在安装 rugged 时也使用系统库
 bundle config build.rugged --use-system-libraries
-bundle lock --update grpc
+# bundle lock --update grpc
 cd ${GITLAB_HOME}
 # --- 修复结束 ---
 
