@@ -39,7 +39,7 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
-  gettext libkrb5-dev libgmp-dev \
+  gettext libkrb5-dev libgmp-dev libre2-dev \
   libgpg-error-dev libassuan-dev libgpgme-dev \
   libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev \
   autoconf automake libsqlite3-dev"
