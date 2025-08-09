@@ -48,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./.beagle/Dockerfile
+          file: ./.beagle/arm64.Dockerfile
           platforms: linux/arm64
           push: true
           provenance: false

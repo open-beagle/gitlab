@@ -1,4 +1,4 @@
-ARG BASE=ubuntu:xenial
+ARG BASE=ubuntu:20.04
 
 FROM ${BASE}
 
@@ -27,55 +27,56 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
     GITLAB_BUILD_DIR="${GITLAB_CACHE_DIR}/build" \
     GITLAB_RUNTIME_DIR="${GITLAB_CACHE_DIR}/runtime"
 
-    RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-       wget ca-certificates apt-transport-https \
-    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv E1DD270288B4E6030699E45FA1715D88E1DF1F24 \
-    && echo "deb http://ppa.launchpad.net/git-core/ppa/ubuntu xenial main" >> /etc/apt/sources.list \
-    # --- START: Ruby Fix ---
-    # 1. 移除 Brightbox PPA 的添加，因为它在 arm64 上不完整
-    # && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 80F70E11F0F0D5F10CB20E62F5DA5F09C3173AA6 \
-    # && echo "deb http://ppa.launchpad.net/brightbox/ruby-ng/ubuntu xenial main" >> /etc/apt/sources.list \
-    # --- END: Ruby Fix ---
-    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 8B3981E7A6852F782CC4951600A6F0A3C300EE8C \
-    && echo "deb http://ppa.launchpad.net/nginx/stable/ubuntu xenial main" >> /etc/apt/sources.list \
-    && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
-    && echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ xenial-pgdg main' > /etc/apt/sources.list.d/pgdg.list \
-    && wget --quiet -O - https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - \
-    && echo 'deb https://deb.nodesource.com/node_8.x xenial main' > /etc/apt/sources.list.d/nodesource.list \
-    && wget --quiet -O - https://dl.yarnpkg.com/debian/pubkey.gpg  | apt-key add - \
-    && echo 'deb https://dl.yarnpkg.com/debian/ stable main' > /etc/apt/sources.list.d/yarn.list \
-    && apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-       sudo supervisor logrotate locales curl \
-       nginx openssh-server mysql-client postgresql-client redis-tools \
-       # --- START: Ruby Fix ---
-       # 2. 移除旧的 ruby${RUBY_VERSION} 包，替换为编译 Ruby 所需的依赖
-       git-core gnupg2 build-essential libssl-dev libyaml-dev libreadline-dev zlib1g-dev libncurses5-dev libffi-dev libgdbm-dev \
-       # --- END: Ruby Fix ---
-       python2.7 python-docutils nodejs yarn gettext-base \
-       libmysqlclient20 libpq5 zlib1g libyaml-0-2 libssl1.0.0 \
-       libgdbm3 libreadline6 libncurses5 libffi6 \
-       libxml2 libxslt1.1 libcurl3 libicu55 libre2-dev tzdata unzip libimage-exiftool-perl \
-       shared-mime-info \
-    # --- START: Ruby Fix ---
-    # 3. 使用 rbenv 安装 Ruby 2.5.8 (替换原来无用的 locale 和 gem install)
-    && git clone https://github.com/rbenv/rbenv.git /usr/local/rbenv \
-    && git clone https://github.com/rbenv/ruby-build.git /usr/local/rbenv/plugins/ruby-build \
-    && export RBENV_ROOT=/usr/local/rbenv \
-    && export PATH="$RBENV_ROOT/bin:$PATH" \
-    && eval "$(rbenv init -)" \
-    && rbenv install ${RUBY_VERSION} \
-    && rbenv global ${RUBY_VERSION} \
-    && gem install --no-document bundler -v 1.17.3 \
-    # --- END: Ruby Fix ---
-    && update-locale LANG=C.UTF-8 LC_MESSAGES=POSIX \
-    && locale-gen en_US.UTF-8 \
-    && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales \
-    && rm -rf /var/lib/apt/lists/*
+# --- 构建依赖安装 ---
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get install --no-install-recommends -y \
+        # 基础工具
+        wget curl gnupg2 ca-certificates apt-transport-https software-properties-common \
+        # 核心依赖
+        sudo supervisor logrotate locales curl \
+        openssh-server mysql-client postgresql-client redis-tools \
+        # rake运行时依赖
+        libgpgme11 libmysqlclient21 \
+        # 编译工具
+        build-essential git python2.7 && \
+    #
+    # --- 添加软件源 (使用现代化的 gpg 方式) ---
+    #
+    # Git (来自 PPA)
+    add-apt-repository -y ppa:git-core/ppa && \
+    # Nginx (来自 PPA)
+    add-apt-repository -y ppa:nginx/stable && \
+    # PostgreSQL
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+    echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ focal-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
+    wget --quiet -O - https://dl.yarnpkg.com/debian/pubkey.gpg  | apt-key add -  && \
+    echo 'deb https://dl.yarnpkg.com/debian/ stable main' > /etc/apt/sources.list.d/yarn.list && \
+    #
+    # --- 安装构建时依赖 ---
+    #
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        # Git
+        git-core gnupg2 \
+        # Nginx
+        nginx \
+        # Yarn
+        yarn gettext-base \
+        # Python
+        python2.7-dev python-docutils \
+        # 其他编译 GitLab 所需的开发库
+        libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev \
+        libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
+        libxml2-dev libxslt1-dev libcurl4-openssl-dev libicu-dev libre2-dev \
+        shared-mime-info \
+        gawk libgpg-error-dev libassuan-dev libgpgme-dev && \
+    # --- 清理 ---
+    #
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
-COPY .beagle/install.sh ${GITLAB_BUILD_DIR}/install.sh
+COPY .beagle/install_arm64.sh ${GITLAB_BUILD_DIR}/install.sh
 RUN bash ${GITLAB_BUILD_DIR}/install.sh
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/
