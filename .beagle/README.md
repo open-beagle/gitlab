@@ -30,10 +30,37 @@ docker buildx build \
 # arm64
 docker buildx build \
   --platform linux/arm64 \
-  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ubuntu:20.04-arm64 \
+  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 \
   -f .beagle/arm64.Dockerfile \
   --load .
+
+docker run -it --rm \
+  -e GITLAB_VERSION=11.11.3 \
+  -e RUBY_VERSION=2.5.8 \
+  -e GOLANG_VERSION=1.12.6 \
+  -e GITLAB_SHELL_VERSION=9.1.0 \
+  -e GITLAB_WORKHORSE_VERSION=8.7.0 \
+  -e GITLAB_PAGES_VERSION=1.5.0 \
+  -e GITALY_SERVER_VERSION=1.42.7 \
+  -e GITLAB_USER="git" \
+  -e GITLAB_HOME="/home/git" \
+  -e GITLAB_LOG_DIR="/var/log/gitlab" \
+  -e GITLAB_CACHE_DIR="/etc/docker-gitlab" \
+  -e RAILS_ENV=production \
+  -e NODE_ENV=production \
+  -e GITLAB_INSTALL_DIR="/home/git/gitlab" \
+  -e GITLAB_SHELL_INSTALL_DIR="/home/git/gitlab-shell" \
+  -e GITLAB_GITALY_INSTALL_DIR="/home/git/gitaly" \
+  -e GITLAB_DATA_DIR="/home/git/data" \
+  -e GITLAB_BUILD_DIR="/etc/docker-gitlab/build" \
+  -e GITLAB_RUNTIME_DIR="/etc/docker-gitlab/runtime" \
+  -v $PWD:/go/src/github.com/open-beagle/gitlab \
+  -w /go/src/github.com/open-beagle/gitlab \
+  registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
+  bash
+bash .beagle/install_arm64_base.sh && \
+bash .beagle/install_arm64_debug.sh
 ```
 
 ## mysql

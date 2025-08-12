@@ -1,4 +1,4 @@
-ARG BASE=ubuntu:20.04
+ARG BASE=ruby:2.5.8
 
 FROM ${BASE}
 
@@ -28,7 +28,10 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
     GITLAB_RUNTIME_DIR="${GITLAB_CACHE_DIR}/runtime"
 
 # --- 构建依赖安装 ---
-RUN apt-get update && \
+RUN sed -i -e 's/deb.debian.org/archive.debian.org/g' \
+       -e 's|security.debian.org|archive.debian.org|g' \
+       -e '/-updates/d' /etc/apt/sources.list && \
+    apt-get update && \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install --no-install-recommends -y \
         # 基础工具
@@ -40,21 +43,18 @@ RUN apt-get update && \
         libgpgme11 libmysqlclient21 gettext-base shared-mime-info gawk bison libtool sqlite3 gnupg2 \
         # 编译工具
         git python2.7 && \
-    #
     # --- 添加软件源 (使用现代化的 gpg 方式) ---
-    #
     # Git (来自 PPA)
     add-apt-repository -y ppa:git-core/ppa && \
     # Nginx (来自 PPA)
     add-apt-repository -y ppa:nginx/stable && \
     # PostgreSQL
     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ focal-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
+    echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
+    # Yarn
     wget --quiet -O - https://dl.yarnpkg.com/debian/pubkey.gpg  | apt-key add -  && \
     echo 'deb https://dl.yarnpkg.com/debian/ stable main' > /etc/apt/sources.list.d/yarn.list && \
-    #
     # --- 安装构建时依赖 ---
-    #
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         # Git
@@ -64,11 +64,10 @@ RUN apt-get update && \
         # Yarn
         yarn && \
     # --- 清理 ---
-    #
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
-COPY .beagle/install_arm64.sh ${GITLAB_BUILD_DIR}/install.sh
+COPY .beagle/install_arm64_debug.sh ${GITLAB_BUILD_DIR}/install.sh
 RUN bash ${GITLAB_BUILD_DIR}/install.sh
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/

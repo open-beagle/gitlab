@@ -21,22 +21,33 @@ sed -i -e 's/deb.debian.org/archive.debian.org/g' \
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-    build-essential git gnupg2 curl wget ca-certificates \
-    cmake \
+    build-essential git cmake curl wget ca-certificates \
+    gnupg2 \
     libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev
 
-# --- 关键修复：从源码编译并安装指定版本的 libgit2 ---
-echo "INFO: Building libgit2 v0.28.5 from source to satisfy rugged gem..."
+# --- 关键修复：从源码编译并安装指定版本的 libgit2，并避免重复安装 ---
 LIBGIT2_VERSION="0.28.5"
-cd /tmp
-wget -q https://github.com/libgit2/libgit2/archive/v${LIBGIT2_VERSION}.tar.gz -O libgit2.tar.gz
-tar xzf libgit2.tar.gz
-cd libgit2-${LIBGIT2_VERSION}/
-mkdir build && cd build
-# 我们将它安装到 /usr/local，这是一个标准位置
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build . --target install
-cd / # 返回根目录以避免路径问题
+INSTALLED_VERSION=$(pkg-config --modversion libgit2 2>/dev/null || echo "not found")
+if [ "$INSTALLED_VERSION" = "$LIBGIT2_VERSION" ]; then
+    echo "INFO: libgit2 v${LIBGIT2_VERSION} is already installed. Skipping build."
+else
+    echo "INFO: libgit2 v${LIBGIT2_VERSION} not found or version mismatch (found: ${INSTALLED_VERSION}). Building from source..."
+    cd /tmp
+    wget -q https://github.com/libgit2/libgit2/archive/v${LIBGIT2_VERSION}.tar.gz -O libgit2.tar.gz
+    tar xzf libgit2.tar.gz
+    cd libgit2-${LIBGIT2_VERSION}/
+    mkdir build && cd build
+    # 我们将它安装到 /usr/local，这是一个标准位置
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+    cmake --build . --target install
+    # 更新动态链接器缓存，非常重要！
+    ldconfig
+    cd / # 返回根目录以避免路径问题
+    # 清理下载和解压的临时文件
+    rm -rf /tmp/libgit2.tar.gz /tmp/libgit2-${LIBGIT2_VERSION}
+    ldconfig # 刷新动态链接库缓存，非常重要！
+    echo "INFO: libgit2 v${LIBGIT2_VERSION} installed successfully."
+fi
 # --- 修复结束 ---
 
 # download golang
@@ -62,21 +73,40 @@ fi
 
 # # download and build gitaly
 if ! [[ -d ${GITLAB_GITALY_BUILD_DIR} ]]; then
-  echo "Downloading gitaly v.${GITALY_SERVER_VERSION}..."
+  echo "Downloading gitaly v${GITALY_SERVER_VERSION}..."
   git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
 fi
 
-# --- 关键修复：在 make 之前，强制更新 Gitaly 的 grpc gem 版本 ---
-echo "INFO: Hacking Gitaly's Gemfile.lock to update grpc for ARM64 compatibility..."
-cd ${GITLAB_GITALY_BUILD_DIR}/ruby
-# 以 git 用户身份执行 bundle lock --update
-# 这会尝试将 grpc 更新到最新的 1.x 版本，这些新版本通常有更好的ARM64支持
+# --- 关键修复：ARM64 grpc gem 编译问题 ---
+echo "INFO: Preparing ARM64-compatible grpc gem compilation..."
+cd "${GITLAB_GITALY_BUILD_DIR}/ruby"
+
+# 设置编译环境变量，禁用会导致问题的警告
+export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+
+# 配置bundler使用系统库
 bundle config build.grpc --with-system-libraries
-# 告诉 bundler 在安装 rugged 时也使用系统库
 bundle config build.rugged --use-system-libraries
-# bundle lock --update grpc
+
+# 设置 GRPC 编译环境变量
+export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
+
+# 尝试安装依赖
+echo "INFO: Installing Ruby dependencies with ARM64 compatibility fixes..."
+bundle install
+
+# 检查grpc gem是否已经成功安装
+if bundle list | grep -q "grpc (1.19.0)"; then
+    echo "INFO: grpc gem 1.19.0 installed successfully!"
+else
+    echo "ERROR: grpc gem 1.19.0 installation failed."
+    exit 1
+fi
+
+echo "INFO: Bundle install completed successfully for ARM64!"
 cd ${GITLAB_HOME}
-# --- 修复结束 ---
+# --- ARM64修复结束 ---
 
 # install gitaly
 # 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
