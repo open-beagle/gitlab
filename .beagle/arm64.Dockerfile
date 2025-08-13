@@ -28,42 +28,39 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
     GITLAB_RUNTIME_DIR="${GITLAB_CACHE_DIR}/runtime"
 
 # --- 构建依赖安装 ---
-# 步骤1：先安装基础工具和 GPG，为添加软件源做准备
+# 步骤1：更新软件源配置
 RUN sed -i -e 's/deb.debian.org/archive.debian.org/g' \
     -e 's|security.debian.org|archive.debian.org|g' \
-    -e '/-updates/d' /etc/apt/sources.list && \
-    apt-get update && \
+    -e '/-updates/d' /etc/apt/sources.list
+
+# 步骤2：安装基础工具
+RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         ca-certificates curl gnupg2 wget git && \
-    \
-    # 步骤2：添加所有需要的第三方软件源 (使用现代、稳定的 gpg --dearmor 方法)
-    # --- Nginx (官方源 for Debian Buster) ---
-    curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg && \
+    rm -rf /var/lib/apt/lists/*
+
+# 步骤3：添加第三方软件源
+RUN curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian/ buster nginx" > /etc/apt/sources.list.d/nginx.list && \
-    \
-    # --- PostgreSQL (官方源 for Debian Buster) ---
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    \
-    # --- Yarn (官方源) ---
     curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/yarn-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/yarn-archive-keyring.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list && \
-    \
-    # 步骤3：在添加完所有源之后，再次更新并一次性安装所有软件包
-    apt-get update && \
+    echo "deb [signed-by=/usr/share/keyrings/yarn-archive-keyring.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
+
+# 步骤4：安装主要软件包
+RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        # 基础工具
         software-properties-common sudo supervisor logrotate locales \
         apt-transport-https openssh-server gettext-base \
         shared-mime-info gawk bison libtool sqlite3 libgpgme11 libmariadb-dev \
-        # 客户端工具
         default-mysql-client postgresql-client redis-tools \
-        # 应用
-        nginx yarn \
-        # 特定版本依赖
         python2.7 && \
-    \
-    # 步骤4：清理，减小镜像体积
+    rm -rf /var/lib/apt/lists/*
+
+# 步骤5：安装 Nginx 和 Yarn
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        nginx yarn && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
