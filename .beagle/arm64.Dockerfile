@@ -39,22 +39,19 @@ RUN apt-get update && \
         ca-certificates curl gnupg2 wget git && \
     rm -rf /var/lib/apt/lists/*
 
-# 步骤3：添加第三方软件源
+# 步骤3：添加第三方软件源 (使用 apt-key 兼容方法)
 RUN \
     # --- Nginx ---
-    curl -fsSL https://nginx.org/keys/nginx_signing.key -o /tmp/nginx.key && \
-    gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg < /tmp/nginx.key && \
-    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian/ buster nginx" > /etc/apt/sources.list.d/nginx.list && \
+    curl -fsSL https://nginx.org/keys/nginx_signing.key | apt-key add - && \
+    echo "deb http://nginx.org/packages/debian/ buster nginx" > /etc/apt/sources.list.d/nginx.list && \
     \
     # --- PostgreSQL ---
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /tmp/postgres.key && \
-    gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg < /tmp/postgres.key && \
-    echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+    echo "deb http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     \
     # --- Yarn ---
-    curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg -o /tmp/yarn.key && \
-    gpg --dearmor -o /usr/share/keyrings/yarn-archive-keyring.gpg < /tmp/yarn.key && \
-    echo "deb [signed-by=/usr/share/keyrings/yarn-archive-keyring.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
+    curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
+    echo "deb https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
 
 # 步骤4：安装主要软件包
 RUN apt-get update && \
