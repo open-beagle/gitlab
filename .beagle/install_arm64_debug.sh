@@ -306,7 +306,29 @@ echo "INFO: Fixing ffi gem compatibility issue..."
 # 强制使用Ruby平台版本，避免预编译的二进制版本问题
 bundle config --local force_ruby_platform true
 
-# 如果Gemfile.lock存在，先删除它让bundle重新解析依赖
+# 修复nokogiri/loofah版本兼容性问题
+echo "INFO: Fixing nokogiri/loofah compatibility issue..."
+# 问题：loofah 2.21.1 需要更新的nokogiri版本，但Gemfile锁定了1.10.3
+# 解决方案：修改Gemfile中的loofah版本要求
+
+# 备份原始Gemfile
+cp Gemfile Gemfile.backup || true
+
+# 修改Gemfile中的gem版本要求，使其与Ruby 2.5.8兼容
+echo "INFO: Updating gem version requirements for Ruby 2.5.8 compatibility..."
+# 修复loofah版本
+sed -i "s/gem 'loofah', '~> 2\.2'/gem 'loofah', '~> 2.2.3'/" Gemfile || true
+sed -i "s/gem \"loofah\", \"~> 2\.2\"/gem \"loofah\", \"~> 2.2.3\"/" Gemfile || true
+
+# 修复js_regex版本，使用与Ruby 2.5.8兼容的版本
+sed -i "s/gem 'js_regex', '~> 3\.1'/gem 'js_regex', '~> 3.1.1'/" Gemfile || true
+sed -i "s/gem \"js_regex\", \"~> 3\.1\"/gem \"js_regex\", \"~> 3.1.1\"/" Gemfile || true
+
+# 删除可能存在的重复行
+grep -v "# Temporary fix for nokogiri/loofah compatibility" Gemfile > Gemfile.tmp || true
+mv Gemfile.tmp Gemfile || true
+
+# 如果Gemfile.lock存在，删除它让bundle重新解析依赖
 if [ -f "Gemfile.lock" ]; then
     echo "INFO: Removing existing Gemfile.lock to resolve dependency conflicts..."
     rm -f Gemfile.lock
@@ -330,12 +352,39 @@ export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
 
 # 安装gems，强制使用Ruby平台版本
 echo "INFO: Installing gems with platform compatibility fixes..."
-bundle install --without development test aws
+# 先尝试正常安装
+if ! bundle install --without development test aws; then
+    echo "INFO: Bundle install failed, trying to fix nokogiri/loofah compatibility..."
+    
+    # 方法1：尝试更新相关gems
+    bundle update nokogiri loofah rails-html-sanitizer || true
+    
+    # 方法2：如果还是失败，强制安装兼容版本
+    if ! bundle install --without development test aws; then
+        echo "INFO: Still failing, forcing compatible gem versions..."
+        # 强制安装兼容的loofah版本
+        gem install loofah -v '2.2.3' --no-document || true
+        # 重新尝试bundle install
+        bundle install --without development test aws
+    fi
+fi
 
 # 确保安装的gems目录属于git用户
 chown -R ${GITLAB_USER}: vendor/bundle || true
-chown -R ${GITLAB_USER}: .bundle || true
+if [ -d ".bundle" ]; then
+    chown -R ${GITLAB_USER}: .bundle || true
+fi
 chown ${GITLAB_USER}: Gemfile.lock || true
+
+# 不恢复原始Gemfile，保持修改后的版本以避免assets编译时的版本冲突
+echo "INFO: Keeping modified Gemfile to avoid version conflicts during assets compilation..."
+# 删除备份文件
+rm -f Gemfile.backup || true
+
+# 确保git用户的bundle配置正确
+echo "INFO: Setting up bundle configuration for git user..."
+exec_as_git bundle config --local path vendor/bundle
+exec_as_git bundle config --local without 'development test aws'
 
 echo "INFO: Bundle install completed successfully"
 # --- 修复结束 ---
