@@ -35,6 +35,7 @@ docker buildx build \
   -f .beagle/arm64.Dockerfile \
   --load .
 
+sudo rm -rf $PWD/.tmp/git && \
 docker run -it --rm \
   -e GITLAB_VERSION=11.11.3 \
   -e RUBY_VERSION=2.5.8 \
@@ -57,6 +58,7 @@ docker run -it --rm \
   -e GITLAB_RUNTIME_DIR="/etc/docker-gitlab/runtime" \
   -v $PWD:/go/src/github.com/open-beagle/gitlab \
   -w /go/src/github.com/open-beagle/gitlab \
+  -v $PWD/.tmp:/home \
   registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
   bash .beagle/install_arm64_base.sh && \
   bash .beagle/install_arm64_debug.sh
