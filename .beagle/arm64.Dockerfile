@@ -55,7 +55,7 @@ RUN sed -i -e 's/deb.debian.org/archive.debian.org/g' \
         # 基础工具
         software-properties-common sudo supervisor logrotate locales \
         apt-transport-https openssh-server gettext-base \
-        shared-mime-info gawk bison libtool sqlite3 libgpgme11 \
+        shared-mime-info gawk bison libtool sqlite3 libgpgme11 libmariadb-dev \
         # 客户端工具
         default-mysql-client postgresql-client redis-tools \
         # 应用
