@@ -39,19 +39,19 @@ RUN apt-get update && \
         ca-certificates curl gnupg2 wget git && \
     rm -rf /var/lib/apt/lists/*
 
-# 步骤3：添加第三方软件源 (使用 apt-key 兼容方法)
-RUN \
-    # --- Nginx ---
-    curl -fsSL https://nginx.org/keys/nginx_signing.key | apt-key add - && \
-    echo "deb http://nginx.org/packages/debian/ buster nginx" > /etc/apt/sources.list.d/nginx.list && \
-    \
-    # --- PostgreSQL ---
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    echo "deb http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    \
-    # --- Yarn ---
-    curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
+# 步骤3a：添加 Nginx 软件源
+RUN curl -fsSL https://nginx.org/keys/nginx_signing.key | apt-key add - && \
+    echo "deb http://nginx.org/packages/debian/ buster nginx" > /etc/apt/sources.list.d/nginx.list
+
+# 步骤3b：添加 PostgreSQL 软件源
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+    echo "deb http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+
+# 步骤3c：添加 Yarn 软件源 (使用备用方法)
+RUN curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg -o /tmp/yarn.key && \
+    apt-key add /tmp/yarn.key && \
+    echo "deb https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list && \
+    rm -f /tmp/yarn.key
 
 # 步骤4：安装主要软件包
 RUN apt-get update && \
