@@ -254,12 +254,20 @@ exec_as_git bundle config build.gpgme --use-system-libraries
 # --- ADD THE FIX HERE ---
 # Fix for the yanked mimemagic gem version
 echo "INFO: Fixing mimemagic gem issue..."
-# 首先尝试更新 mimemagic，如果失败则使用替代方案
+
+# 修复 bundle 权限问题
+chown -R ${GITLAB_USER}: ${GITLAB_HOME}
+exec_as_git bundle config set --local path 'vendor/bundle'
+exec_as_git bundle config set --local without 'development test aws'
+
+# 尝试修复 mimemagic 问题
 if ! exec_as_git bundle lock --update mimemagic 2>/dev/null; then
-    echo "INFO: mimemagic update failed, trying alternative approach..."
-    # 如果更新失败，尝试添加 marcel gem 作为替代
-    exec_as_git bundle add marcel --skip-install || true
-    # 或者直接跳过这个步骤，因为在某些版本中这不是必需的
+    echo "INFO: mimemagic update failed, trying to remove problematic version..."
+    # 尝试移除有问题的 mimemagic 版本并重新生成 Gemfile.lock
+    exec_as_git sed -i '/mimemagic (0.3.2)/d' Gemfile.lock || true
+    exec_as_git sed -i '/mimemagic (~> 0.3.2)/d' Gemfile.lock || true
+    
+    # 如果还是失败，跳过这个步骤
     echo "INFO: Continuing without mimemagic update..."
 fi
 # --- END OF FIX ---
@@ -270,7 +278,14 @@ if [[ -d ${GEM_CACHE_DIR} ]]; then
   chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
 fi
 
-exec_as_git bundle install --deployment --without development test aws
+# 确保正确的权限和配置
+chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}
+exec_as_git bundle config set --local deployment 'true'
+exec_as_git bundle config set --local path 'vendor/bundle'
+exec_as_git bundle config set --local without 'development test aws'
+
+# 安装 gems
+exec_as_git bundle install
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}
