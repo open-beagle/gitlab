@@ -29,7 +29,10 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
 
 # --- 构建依赖安装 ---
 # 步骤1：先安装基础工具和 GPG，为添加软件源做准备
-RUN apt-get update && \
+RUN sed -i -e 's/deb.debian.org/archive.debian.org/g' \
+    -e 's|security.debian.org|archive.debian.org|g' \
+    -e '/-updates/d' /etc/apt/sources.list && \
+    apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         ca-certificates curl gnupg2 wget git && \
     \

@@ -3,8 +3,7 @@ set -ex
 
 sed -i -e 's/deb.debian.org/archive.debian.org/g' \
        -e 's|security.debian.org|archive.debian.org|g' \
-       -e '/-updates/d' /etc/apt/sources.list && \
-    apt-get update
+       -e '/-updates/d' /etc/apt/sources.list
 
 apt-get update 
 
