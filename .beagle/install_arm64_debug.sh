@@ -99,28 +99,10 @@ fi
 cat >> ${GITLAB_HOME}/.profile <<EOF
 PATH=/usr/local/sbin:/usr/local/bin:\$PATH
 
-# NVM (Node Version Manager)
-NVM_DIR="\$HOME/.nvm"
-[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-[ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
-
 # Golang
 GOROOT=/tmp/go
 PATH=\${GOROOT}/bin:\$PATH
 EOF
-
-# --- 最终修正：在一个统一的、干净的块中安装 nvm ---
-exec_as_git bash -l -c '
-  # Install NVM framework if not present
-  if [[ ! -d "$NVM_DIR" ]]; then
-    echo "INFO: Installing NVM..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-  fi
-  . "$NVM_DIR/nvm.sh"
-  if ! nvm ls 8 >/dev/null 2>&1; then
-    nvm install 8
-  fi
-'
 
 # configure git for ${GITLAB_USER}
 exec_as_git git config --global core.autocrlf input

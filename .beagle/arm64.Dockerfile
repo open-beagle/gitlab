@@ -47,11 +47,7 @@ RUN curl -fsSL https://nginx.org/keys/nginx_signing.key | apt-key add - && \
 RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
     echo "deb http://apt-archive.postgresql.org/pub/repos/apt/ buster-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 
-# 步骤3c：添加 Yarn 软件源 (使用备用方法)
-RUN curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg -o /tmp/yarn.key && \
-    apt-key add /tmp/yarn.key && \
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list && \
-    rm -f /tmp/yarn.key
+# 步骤3c：跳过 Yarn 官方源，我们将通过 npm 安装
 
 # 步骤4：安装主要软件包
 RUN apt-get update && \
@@ -63,10 +59,11 @@ RUN apt-get update && \
         python2.7 && \
     rm -rf /var/lib/apt/lists/*
 
-# 步骤5：安装 Nginx 和 Yarn
+# 步骤5：安装 Nginx 和通过 npm 安装 Yarn
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        nginx yarn && \
+        nginx nodejs npm && \
+    npm install -g yarn && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
