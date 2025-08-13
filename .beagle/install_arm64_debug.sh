@@ -239,20 +239,18 @@ echo "INFO: Fixing mimemagic gem issue..."
 
 # 修复 bundle 权限问题
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}
-exec_as_git bundle config set --local path 'vendor/bundle'
-exec_as_git bundle config set --local without 'development test aws'
 
-# 尝试修复 mimemagic 问题
-if ! exec_as_git bundle lock --update mimemagic 2>/dev/null; then
-    echo "INFO: mimemagic update failed, trying to remove problematic version..."
-    # 尝试移除有问题的 mimemagic 版本并重新生成 Gemfile.lock
-    exec_as_git sed -i '/mimemagic (0.3.2)/d' Gemfile.lock || true
-    exec_as_git sed -i '/mimemagic (~> 0.3.2)/d' Gemfile.lock || true
+# # 尝试修复 mimemagic 问题
+# if ! exec_as_git bundle lock --update mimemagic 2>/dev/null; then
+#     echo "INFO: mimemagic update failed, trying to remove problematic version..."
+#     # 尝试移除有问题的 mimemagic 版本并重新生成 Gemfile.lock
+#     exec_as_git sed -i '/mimemagic (0.3.2)/d' Gemfile.lock || true
+#     exec_as_git sed -i '/mimemagic (~> 0.3.2)/d' Gemfile.lock || true
     
-    # 如果还是失败，跳过这个步骤
-    echo "INFO: Continuing without mimemagic update..."
-fi
-# --- END OF FIX ---
+#     # 如果还是失败，跳过这个步骤
+#     echo "INFO: Continuing without mimemagic update..."
+# fi
+# # --- END OF FIX ---
 
 # install gems, use local cache if available
 if [[ -d ${GEM_CACHE_DIR} ]]; then
@@ -262,9 +260,15 @@ fi
 
 # 确保正确的权限和配置
 chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}
-exec_as_git bundle config set --local deployment 'true'
-exec_as_git bundle config set --local path 'vendor/bundle'
-exec_as_git bundle config set --local without 'development test aws'
+
+# 确保 bundle 配置目录存在且有正确权限
+mkdir -p ${GITLAB_HOME}/.bundle
+chown -R ${GITLAB_USER}: ${GITLAB_HOME}/.bundle
+
+# 设置 bundle 配置，避免写入全局配置
+exec_as_git bundle config --local deployment true
+exec_as_git bundle config --local path vendor/bundle
+exec_as_git bundle config --local without 'development test aws'
 
 # 安装 gems
 exec_as_git bundle install
