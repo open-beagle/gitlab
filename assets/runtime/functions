@@ -23,10 +23,10 @@ GITLAB_RESQUE_CONFIG="${GITLAB_INSTALL_DIR}/config/resque.yml"
 GITLAB_SECRETS_CONFIG="${GITLAB_INSTALL_DIR}/config/secrets.yml"
 GITLAB_ROBOTS_CONFIG="${GITLAB_INSTALL_DIR}/public/robots.txt"
 GITLAB_SHELL_CONFIG="${GITLAB_SHELL_INSTALL_DIR}/config.yml"
-GITLAB_NGINX_CONFIG="/etc/nginx/sites-enabled/gitlab"
-GITLAB_CI_NGINX_CONFIG="/etc/nginx/sites-enabled/gitlab_ci"
-GITLAB_REGISTRY_NGINX_CONFIG="/etc/nginx/sites-enabled/gitlab-registry"
-GITLAB_PAGES_NGINX_CONFIG="/etc/nginx/sites-enabled/gitlab-pages"
+GITLAB_NGINX_CONFIG="/etc/nginx/conf.d/gitlab.conf"
+GITLAB_CI_NGINX_CONFIG="/etc/nginx/conf.d/gitlab_ci.conf"
+GITLAB_REGISTRY_NGINX_CONFIG="/etc/nginx/conf.d/gitlab-registry.conf"
+GITLAB_PAGES_NGINX_CONFIG="/etc/nginx/conf.d/gitlab-pages.conf"
 GITLAB_GITALY_CONFIG="${GITLAB_GITALY_INSTALL_DIR}/config.toml"
 
 # Compares two version strings `a` and `b`
@@ -1505,10 +1505,9 @@ initialize_system() {
   initialize_logdir
   initialize_datadir
   
-  # 创建 nginx sites-enabled 目录（如果不存在）
+  # 创建 nginx conf.d 目录（如果不存在）
   echo "Initializing nginx directories..."
-  mkdir -p /etc/nginx/sites-enabled
-  mkdir -p /etc/nginx/sites-available
+  mkdir -p /etc/nginx/conf.d
   
   update_ca_certificates
   generate_ssh_host_keys

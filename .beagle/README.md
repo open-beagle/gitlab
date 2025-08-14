@@ -33,7 +33,8 @@ docker buildx build \
   --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 \
   -f .beagle/arm64.Dockerfile \
-  --load .
+  --load . && \
+docker push registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64
 
 sudo rm -rf $PWD/.tmp/git && \
 docker run -it --rm \

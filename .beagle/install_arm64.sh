@@ -44,6 +44,9 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev libxslt1-dev \
   autoconf automake libsqlite3-dev"
 
+# 运行时需要的库（不能删除）
+RUNTIME_DEPENDENCIES="libre2-5 libgrpc6 libprotobuf17"
+
 ## Execute a command as GITLAB_USER
 exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
@@ -55,7 +58,7 @@ exec_as_git() {
 
 # install build dependencies for gem installation
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES} ${RUNTIME_DEPENDENCIES}
 
 # --- 关键修复：从源码编译并安装指定版本的 libgit2，并避免重复安装 ---
 LIBGIT2_VERSION="0.28.5"
@@ -448,9 +451,9 @@ cp ${GITLAB_INSTALL_DIR}/lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
 
 # disable default nginx configuration and enable gitlab's nginx configuration
-# 创建 sites-enabled 目录（如果不存在）
-mkdir -p /etc/nginx/sites-enabled
-rm -rf /etc/nginx/sites-enabled/default
+# 创建 conf.d 目录（如果不存在）并移除默认配置
+mkdir -p /etc/nginx/conf.d
+rm -rf /etc/nginx/conf.d/default.conf
 
 # configure sshd
 sed -i \
@@ -648,8 +651,13 @@ stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
-# purge build dependencies and cleanup apt
-DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove ${BUILD_DEPENDENCIES}
+# purge build dependencies and cleanup apt (keep runtime dependencies)
+echo "INFO: Removing build dependencies while keeping runtime libraries..."
+DEBIAN_FRONTEND=noninteractive apt-get purge -y ${BUILD_DEPENDENCIES}
+# 确保运行时依赖没有被自动删除
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${RUNTIME_DEPENDENCIES}
+# 清理不需要的包，但保护运行时依赖
+DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
 rm -rf /var/lib/apt/lists/*
 
 # clean up caches
