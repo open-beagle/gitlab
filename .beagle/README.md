@@ -91,14 +91,14 @@ docker run --name gitlab-mysql -d \
 
 docker rm -f gitlab-mysql
 
-docker pull registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64 && \
+docker pull registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 && \
 docker run \
+    -it \
+    --rm \
     --name gitlab \
     --link gitlab-mysql:mysql \
     --link gitlab-redis:redisio \
-    -it \
-    --rm \
-    --volume ./.tmp/gitlab:/home/git/data \
+    -v ./.tmp/gitlab:/home/git/data \
     -v ./assets/runtime:/etc/docker-gitlab/runtime \
     -v ./.tmp/log:/var/log/gitlab \
     --publish 10022:22 \
@@ -109,7 +109,7 @@ docker run \
     --env 'GITLAB_SECRETS_SECRET_KEY_BASE=long-and-random-alpha-numeric-string' \
     --env 'GITLAB_SECRETS_OTP_KEY_BASE=long-and-random-alpha-numeric-string' \
     --entrypoint=bash \
-    registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64
+    registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64
     /sbin/entrypoint.sh app:start
 
 docker rm -f gitlab

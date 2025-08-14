@@ -1504,6 +1504,12 @@ initialize_system() {
   map_uidgid
   initialize_logdir
   initialize_datadir
+  
+  # 创建 nginx sites-enabled 目录（如果不存在）
+  echo "Initializing nginx directories..."
+  mkdir -p /etc/nginx/sites-enabled
+  mkdir -p /etc/nginx/sites-available
+  
   update_ca_certificates
   generate_ssh_host_keys
   install_configuration_templates
