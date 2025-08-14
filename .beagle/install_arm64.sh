@@ -204,7 +204,7 @@ if ! [ -e /usr/local/bin/gitaly ]; then
 
   # 配置bundler使用系统库
   bundle config build.grpc --with-system-libraries
-  bundle config build.rugged --use-system-libraries
+  # rugged 将在后面单独配置，不在这里设置
 
   # 设置 GRPC 编译环境变量
   export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
@@ -293,7 +293,8 @@ export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
 
 # 2. 修复 rugged gem - 让它使用内置的libgit2版本，避免与系统libgit2冲突
 echo "INFO: Configuring rugged gem to use bundled libgit2..."
-# 不设置 build.rugged 配置，让它使用默认的内置libgit2
+# 确保 rugged 不使用系统库，让它使用内置的兼容 libgit2 版本
+bundle config build.rugged --no-use-system-libraries
 
 # 3. 修复 gpgme gem - 使用系统库
 echo "INFO: Configuring gpgme gem for system libraries..."
@@ -311,9 +312,9 @@ gem install grpc -v '1.19.0' --no-document || {
     echo "WARNING: Failed to pre-install grpc, will let bundle install handle it"
 }
 
-# 预先安装 rugged 0.99.0
-echo "INFO: Pre-installing rugged 0.99.0..."
-gem install rugged -v '0.99.0' --no-document || {
+# 预先安装 rugged 0.99.0 - 不使用系统库
+echo "INFO: Pre-installing rugged 0.99.0 with bundled libgit2..."
+gem install rugged -v '0.99.0' --no-document -- --no-use-system-libraries || {
     echo "WARNING: Failed to pre-install rugged, will let bundle install handle it"
 }
 
@@ -323,49 +324,49 @@ gem install gpgme -v '2.0.20' --no-document || {
     echo "WARNING: Failed to pre-install gpgme, will let bundle install handle it"
 }
 
-# --- 修复 mimemagic 被移除的问题 ---
-echo "INFO: Fixing mimemagic removal issue..."
+# --- 彻底修复 mimemagic 和依赖问题 ---
+echo "INFO: Fixing mimemagic and dependency issues..."
+
+# 首先禁用 deployment 模式，允许修改 Gemfile.lock
+bundle config --delete deployment || true
+bundle config --delete frozen || true
+
+# 修复 mimemagic 问题 - 使用一个兼容的版本
 if grep -q "mimemagic (0.3.2)" Gemfile.lock; then
-    echo "INFO: Detected mimemagic 0.3.2 in Gemfile.lock, updating to available version..."
-    # 先安装一个可用的 mimemagic 版本
-    gem install mimemagic -v '0.3.10' --no-document || true
-    # 更新 Gemfile.lock 中的 mimemagic 版本
-    sed -i 's/mimemagic (0.3.2)/mimemagic (0.3.10)/' Gemfile.lock || true
+    echo "INFO: Replacing mimemagic 0.3.2 with compatible version..."
+    # 使用 mimemagic 0.3.5，这个版本比较稳定且不需要额外依赖
+    gem install mimemagic -v '0.3.5' --no-document || true
+    # 更新 Gemfile.lock
+    sed -i 's/mimemagic (0.3.2)/mimemagic (0.3.5)/' Gemfile.lock || true
 fi
 
-# --- 修复版本不匹配问题 ---
-echo "INFO: Updating Gemfile.lock for version compatibility..."
-# 更新一些关键的版本不匹配问题
+# 修复版本不匹配问题
+echo "INFO: Fixing version mismatches in Gemfile.lock..."
 sed -i 's/rugged (0.28.1)/rugged (0.99.0)/' Gemfile.lock || true
 sed -i 's/gpgme (2.0.18)/gpgme (2.0.20)/' Gemfile.lock || true
 
-# 现在尝试 bundle install，应该能使用预安装的 gems
-echo "INFO: Running bundle install with pre-installed gems and fixed versions..."
-if ! bundle install --without development test aws; then
-    echo "WARNING: Bundle install failed, trying to resolve dependency conflicts..."
+# 尝试 bundle install，使用 --full-index 来解决依赖问题
+echo "INFO: Running bundle install with full index..."
+if ! bundle install --without development test aws --full-index; then
+    echo "WARNING: Bundle install with full-index failed, trying update approach..."
     
-    # 如果还是失败，尝试更新 bundle
-    echo "INFO: Attempting bundle update for problematic gems..."
-    bundle update mimemagic || true
-    bundle update rugged || true
-    bundle update gpgme || true
-    bundle update grpc || true
+    # 尝试更新有问题的 gems
+    echo "INFO: Updating problematic gems..."
+    bundle update mimemagic --conservative || true
     
     # 再次尝试安装
     if ! bundle install --without development test aws; then
-        echo "WARNING: Standard bundle install still failing, trying alternative approach..."
+        echo "WARNING: Still failing, trying complete dependency resolution..."
         
-        # 尝试不使用 Gemfile.lock 的严格版本限制
-        echo "INFO: Trying bundle install without strict version locking..."
-        mv Gemfile.lock Gemfile.lock.backup || true
+        # 最后的方案：重新生成 Gemfile.lock
+        echo "INFO: Regenerating Gemfile.lock for ARM64 compatibility..."
+        rm -f Gemfile.lock
         
+        # 使用预安装的 gems 重新生成 lock 文件
         if bundle install --without development test aws; then
-            echo "INFO: Bundle install succeeded without strict version locking"
-            # 生成新的 Gemfile.lock
-            bundle lock
+            echo "INFO: Successfully regenerated Gemfile.lock"
         else
-            echo "ERROR: Bundle install failed completely, restoring original Gemfile.lock"
-            mv Gemfile.lock.backup Gemfile.lock || true
+            echo "ERROR: Complete bundle install failure"
             exit 1
         fi
     fi
@@ -384,6 +385,7 @@ echo "INFO: Setting up bundle configuration for git user..."
 exec_as_git bundle config --local path vendor/bundle
 exec_as_git bundle config --local without 'development test aws'
 exec_as_git bundle config build.grpc --with-system-libraries
+exec_as_git bundle config build.rugged --no-use-system-libraries
 exec_as_git bundle config build.gpgme --use-system-libraries
 exec_as_git bundle config --local force_ruby_platform true
 
