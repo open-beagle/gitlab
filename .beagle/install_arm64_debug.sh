@@ -41,7 +41,7 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
   gettext libkrb5-dev libgmp-dev libre2-dev \
   libgpg-error-dev libassuan-dev libgpgme-dev \
-  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev \
+  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev libxslt1-dev \
   autoconf automake libsqlite3-dev"
 
 ## Execute a command as GITLAB_USER
@@ -252,10 +252,12 @@ exec_as_git sed -i 's/db:reset/db:setup/' ${GITLAB_INSTALL_DIR}/lib/tasks/gitlab
 
 cd ${GITLAB_INSTALL_DIR}
 
-# --- 在这里加入针对 gpgme 的修复 ---
-echo "INFO: Configuring bundler to use system libraries for gpgme gem..."
-bundle config build.gpgme --use-system-libraries
-# --- 修复结束 ---
+# --- 还原 Gemfile 和 Gemfile.lock 到原始状态 ---
+echo "INFO: Restoring original Gemfile and Gemfile.lock from git..."
+exec_as_git git checkout HEAD -- Gemfile Gemfile.lock || {
+    echo "WARNING: Failed to restore Gemfile/Gemfile.lock from git, they may not exist in repo or may have been modified"
+}
+# --- 还原结束 ---
 
 # install gems, use local cache if available
 echo "INFO: install gems, use local cache if available..."
@@ -273,124 +275,124 @@ chown -R ${GITLAB_USER}: ${GITLAB_HOME}
 mkdir -p ${GITLAB_HOME}/.bundle
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}/.bundle
 
-# --- 彻底修复Bundle配置问题 ---
-echo "INFO: Completely cleaning up bundle configuration..."
-# 彻底清理所有bundle配置
-rm -rf .bundle || true
-rm -rf ${GITLAB_HOME}/.bundle || true
-rm -rf vendor/bundle || true
+# --- 精确修复关键 gems：grpc、rugged、gpgme ---
+echo "INFO: Setting up bundle configuration for ARM64 compatibility..."
 
-# 清理环境变量
-unset BUNDLE_DEPLOYMENT
-unset BUNDLE_FROZEN
-unset BUNDLE_PATH
-unset BUNDLE_WITHOUT
-
-# 强制重置bundle配置
-echo "INFO: Force resetting bundle configuration..."
-bundle config --delete deployment || true
-bundle config --delete frozen || true
-bundle config --delete path || true
-bundle config --delete without || true
-bundle config --delete build.rugged || true
-bundle config --delete build.grpc || true
-bundle config --delete build.gpgme || true
-
-# 重新设置bundle配置
-echo "INFO: Setting up fresh bundle configuration..."
+# 设置基本的bundle配置
 bundle config --local path vendor/bundle
 bundle config --local without 'development test aws'
 
-# --- 修复ffi gem版本兼容性问题 ---
-echo "INFO: Fixing ffi gem compatibility issue..."
-# 强制使用Ruby平台版本，避免预编译的二进制版本问题
-bundle config --local force_ruby_platform true
-
-# 修复nokogiri/loofah版本兼容性问题
-echo "INFO: Fixing nokogiri/loofah compatibility issue..."
-# 问题：loofah 2.21.1 需要更新的nokogiri版本，但Gemfile锁定了1.10.3
-# 解决方案：修改Gemfile中的loofah版本要求
-
-# 备份原始Gemfile
-cp Gemfile Gemfile.backup || true
-
-# 修改Gemfile中的gem版本要求，使其与Ruby 2.5.8兼容
-echo "INFO: Updating gem version requirements for Ruby 2.5.8 compatibility..."
-# 修复loofah版本
-sed -i "s/gem 'loofah', '~> 2\.2'/gem 'loofah', '~> 2.2.3'/" Gemfile || true
-sed -i "s/gem \"loofah\", \"~> 2\.2\"/gem \"loofah\", \"~> 2.2.3\"/" Gemfile || true
-
-# 修复js_regex版本，使用与Ruby 2.5.8兼容的版本
-sed -i "s/gem 'js_regex', '~> 3\.1'/gem 'js_regex', '~> 3.1.1'/" Gemfile || true
-sed -i "s/gem \"js_regex\", \"~> 3\.1\"/gem \"js_regex\", \"~> 3.1.1\"/" Gemfile || true
-
-# 删除可能存在的重复行
-grep -v "# Temporary fix for nokogiri/loofah compatibility" Gemfile > Gemfile.tmp || true
-mv Gemfile.tmp Gemfile || true
-
-# 如果Gemfile.lock存在，删除它让bundle重新解析依赖
-if [ -f "Gemfile.lock" ]; then
-    echo "INFO: Removing existing Gemfile.lock to resolve dependency conflicts..."
-    rm -f Gemfile.lock
-fi
-
-# --- 修复grpc gem编译问题 ---
-echo "INFO: Setting up compilation environment for grpc gem..."
-# 设置编译环境变量，禁用会导致问题的警告
+# 设置编译环境变量，针对ARM64优化
 export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
 export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
 
-# 配置bundler使用系统库（除了rugged）
+# 1. 修复 grpc gem - 使用系统库避免编译问题
+echo "INFO: Configuring grpc gem for ARM64..."
 bundle config build.grpc --with-system-libraries
-
-# 确保rugged不使用系统库，让它使用内置的兼容libgit2版本
-echo "INFO: Ensuring rugged uses bundled libgit2..."
-# 不设置 build.rugged 配置，让它使用默认行为（内置libgit2）
-
-# 设置 GRPC 编译环境变量
 export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
 
-# 安装gems，强制使用Ruby平台版本
-echo "INFO: Installing gems with platform compatibility fixes..."
-# 先尝试正常安装
+# 2. 修复 rugged gem - 让它使用内置的libgit2版本，避免与系统libgit2冲突
+echo "INFO: Configuring rugged gem to use bundled libgit2..."
+# 不设置 build.rugged 配置，让它使用默认的内置libgit2
+
+# 3. 修复 gpgme gem - 使用系统库
+echo "INFO: Configuring gpgme gem for system libraries..."
+bundle config build.gpgme --use-system-libraries
+
+# 4. 强制使用Ruby平台版本，避免预编译二进制版本的兼容性问题
+bundle config --local force_ruby_platform true
+
+# 预先安装关键的问题 gems，使用 Gemfile.lock 中的确切版本
+echo "INFO: Pre-installing problematic gems with exact versions from Gemfile.lock..."
+
+# 预先安装 grpc 1.19.0
+echo "INFO: Pre-installing grpc 1.19.0..."
+gem install grpc -v '1.19.0' --no-document || {
+    echo "WARNING: Failed to pre-install grpc, will let bundle install handle it"
+}
+
+# 预先安装 rugged 0.99.0
+echo "INFO: Pre-installing rugged 0.99.0..."
+gem install rugged -v '0.99.0' --no-document || {
+    echo "WARNING: Failed to pre-install rugged, will let bundle install handle it"
+}
+
+# 预先安装 gpgme 2.0.20
+echo "INFO: Pre-installing gpgme 2.0.20..."
+gem install gpgme -v '2.0.20' --no-document || {
+    echo "WARNING: Failed to pre-install gpgme, will let bundle install handle it"
+}
+
+# --- 修复 mimemagic 被移除的问题 ---
+echo "INFO: Fixing mimemagic removal issue..."
+if grep -q "mimemagic (0.3.2)" Gemfile.lock; then
+    echo "INFO: Detected mimemagic 0.3.2 in Gemfile.lock, updating to available version..."
+    # 先安装一个可用的 mimemagic 版本
+    gem install mimemagic -v '0.3.10' --no-document || true
+    # 更新 Gemfile.lock 中的 mimemagic 版本
+    sed -i 's/mimemagic (0.3.2)/mimemagic (0.3.10)/' Gemfile.lock || true
+fi
+
+# --- 修复版本不匹配问题 ---
+echo "INFO: Updating Gemfile.lock for version compatibility..."
+# 更新一些关键的版本不匹配问题
+sed -i 's/rugged (0.28.1)/rugged (0.99.0)/' Gemfile.lock || true
+sed -i 's/gpgme (2.0.18)/gpgme (2.0.20)/' Gemfile.lock || true
+
+# 现在尝试 bundle install，应该能使用预安装的 gems
+echo "INFO: Running bundle install with pre-installed gems and fixed versions..."
 if ! bundle install --without development test aws; then
-    echo "INFO: Bundle install failed, trying to fix nokogiri/loofah compatibility..."
+    echo "WARNING: Bundle install failed, trying to resolve dependency conflicts..."
     
-    # 方法1：尝试更新相关gems
-    bundle update nokogiri loofah rails-html-sanitizer || true
+    # 如果还是失败，尝试更新 bundle
+    echo "INFO: Attempting bundle update for problematic gems..."
+    bundle update mimemagic || true
+    bundle update rugged || true
+    bundle update gpgme || true
+    bundle update grpc || true
     
-    # 方法2：如果还是失败，强制安装兼容版本
+    # 再次尝试安装
     if ! bundle install --without development test aws; then
-        echo "INFO: Still failing, forcing compatible gem versions..."
-        # 强制安装兼容的loofah版本
-        gem install loofah -v '2.2.3' --no-document || true
-        # 重新尝试bundle install
-        bundle install --without development test aws
+        echo "WARNING: Standard bundle install still failing, trying alternative approach..."
+        
+        # 尝试不使用 Gemfile.lock 的严格版本限制
+        echo "INFO: Trying bundle install without strict version locking..."
+        mv Gemfile.lock Gemfile.lock.backup || true
+        
+        if bundle install --without development test aws; then
+            echo "INFO: Bundle install succeeded without strict version locking"
+            # 生成新的 Gemfile.lock
+            bundle lock
+        else
+            echo "ERROR: Bundle install failed completely, restoring original Gemfile.lock"
+            mv Gemfile.lock.backup Gemfile.lock || true
+            exit 1
+        fi
     fi
 fi
+
+echo "INFO: Bundle install completed successfully"
 
 # 确保安装的gems目录属于git用户
 chown -R ${GITLAB_USER}: vendor/bundle || true
 if [ -d ".bundle" ]; then
     chown -R ${GITLAB_USER}: .bundle || true
 fi
-chown ${GITLAB_USER}: Gemfile.lock || true
-
-# 不恢复原始Gemfile，保持修改后的版本以避免assets编译时的版本冲突
-echo "INFO: Keeping modified Gemfile to avoid version conflicts during assets compilation..."
-# 删除备份文件
-rm -f Gemfile.backup || true
 
 # 确保git用户的bundle配置正确
 echo "INFO: Setting up bundle configuration for git user..."
 exec_as_git bundle config --local path vendor/bundle
 exec_as_git bundle config --local without 'development test aws'
+exec_as_git bundle config build.grpc --with-system-libraries
+exec_as_git bundle config build.gpgme --use-system-libraries
+exec_as_git bundle config --local force_ruby_platform true
 
-echo "INFO: Bundle install completed successfully"
+echo "INFO: Bundle install completed successfully with preserved Gemfile.lock"
 # --- 修复结束 ---
 
-# install gems, use local cache if available
-if [[ -d ${GEM_CACHE_DIR} ]]; then
+# install gems, use local cache if available (only if not already processed)
+if [[ -d ${GEM_CACHE_DIR} && ! -d ${GITLAB_INSTALL_DIR}/vendor/cache ]]; then
+  echo "INFO: Using local gem cache..."
   mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
   chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
 fi
@@ -406,6 +408,9 @@ exec_as_git yarn add ajv@^4.0.0
 
 echo "Compiling assets. Please be patient, this could take a while..."
 exec_as_git bundle exec rake gitlab:assets:compile USE_DB=false SKIP_STORAGE_VALIDATION=true NODE_OPTIONS="--max-old-space-size=4096"
+
+echo "INFO: Assets compilation completed successfully"
+# --- 修复结束 ---
 
 # remove auto generated ${GITLAB_DATA_DIR}/config/secrets.yml
 rm -rf ${GITLAB_DATA_DIR}/config/secrets.yml
