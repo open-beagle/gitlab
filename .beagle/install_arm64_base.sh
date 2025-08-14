@@ -1,6 +1,18 @@
 #!/bin/bash
 set -ex
 
+# --- 修复权限问题 ---
+# 确保以 root 权限运行 apt 命令
+if [ "$EUID" -ne 0 ]; then
+    echo "ERROR: This script must be run as root"
+    exit 1
+fi
+
+# 清理可能存在的锁文件
+rm -f /var/lib/apt/lists/lock
+rm -f /var/cache/apt/archives/lock
+rm -f /var/lib/dpkg/lock*
+
 # --- 构建依赖安装 ---
 # 步骤1：更新软件源配置
 sed -i -e 's/deb.debian.org/archive.debian.org/g' \
@@ -38,4 +50,9 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
     nginx nodejs npm
 npm install -g yarn
-rm -rf /var/lib/apt/lists/* /tmp/*
+
+# 步骤6：清理 apt 缓存和锁文件
+rm -rf /var/lib/apt/lists/*
+rm -f /var/lib/apt/lists/lock
+rm -f /var/cache/apt/archives/lock
+rm -f /var/lib/dpkg/lock*

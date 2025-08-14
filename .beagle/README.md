@@ -60,8 +60,10 @@ docker run -it --rm \
   -w /go/src/github.com/open-beagle/gitlab \
   -v $PWD/.tmp:/home \
   registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
-  bash .beagle/install_arm64_base.sh && \
-  bash .beagle/install_arm64_debug.sh
+  bash -c "
+    bash .beagle/install_arm64_base.sh && \
+    bash .beagle/install_arm64.sh
+  "
 ```
 
 ## mysql

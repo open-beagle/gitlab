@@ -64,10 +64,10 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         nginx nodejs npm && \
     npm install -g yarn && \
-    rm -rf /var/lib/apt/lists/* /tmp/*
+    rm -rf /var/lib/apt/lists/*
 
 COPY assets/build/ ${GITLAB_BUILD_DIR}/
-COPY .beagle/install_arm64_debug.sh ${GITLAB_BUILD_DIR}/install.sh
+COPY .beagle/install_arm64.sh ${GITLAB_BUILD_DIR}/install.sh
 RUN bash ${GITLAB_BUILD_DIR}/install.sh
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/

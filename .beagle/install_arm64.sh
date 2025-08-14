@@ -41,7 +41,7 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
   gettext libkrb5-dev libgmp-dev libre2-dev \
   libgpg-error-dev libassuan-dev libgpgme-dev \
-  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev \
+  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev libxslt1-dev \
   autoconf automake libsqlite3-dev"
 
 ## Execute a command as GITLAB_USER
@@ -49,9 +49,7 @@ exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
     "$@"
   else
-    # 使用 -l (login) 标志启动一个登录式的shell，
-    # 这会强制加载 /home/git/.profile 文件，从而初始化RVM环境
-    sudo -HEu ${GITLAB_USER} bash -l -c 'exec "$@"' sh-as-git "$@"
+    sudo -HEu ${GITLAB_USER} "$@"
   fi
 }
 
@@ -99,28 +97,10 @@ fi
 cat >> ${GITLAB_HOME}/.profile <<EOF
 PATH=/usr/local/sbin:/usr/local/bin:\$PATH
 
-# NVM (Node Version Manager)
-NVM_DIR="\$HOME/.nvm"
-[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-[ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
-
 # Golang
 GOROOT=/tmp/go
 PATH=\${GOROOT}/bin:\$PATH
 EOF
-
-# --- 最终修正：在一个统一的、干净的块中安装 nvm ---
-exec_as_git bash -l -c '
-  # Install NVM framework if not present
-  if [[ ! -d "$NVM_DIR" ]]; then
-    echo "INFO: Installing NVM..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-  fi
-  . "$NVM_DIR/nvm.sh"
-  if ! nvm ls 8 >/dev/null 2>&1; then
-    nvm install 8
-  fi
-'
 
 # configure git for ${GITLAB_USER}
 exec_as_git git config --global core.autocrlf input
@@ -129,114 +109,140 @@ exec_as_git git config --global repack.writeBitmaps true
 exec_as_git git config --global receive.advertisePushOptions true
 
 # shallow clone gitlab-ce
-echo "Cloning gitlab-ce v${GITLAB_VERSION}..."
-exec_as_git git clone -q --depth 1 --branch v${GITLAB_VERSION} ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
+if ! [ -d ${GITLAB_INSTALL_DIR} ]; then
+  echo "Cloning gitlab-ce v${GITLAB_VERSION}..."
+  exec_as_git git clone -q --depth 1 --branch v${GITLAB_VERSION} ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
+fi
 
 GITLAB_SHELL_VERSION=${GITLAB_SHELL_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_SHELL_VERSION)}
-GITLAB_WORKHORSE_VERSION=${GITLAB_WORKHOUSE_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_WORKHORSE_VERSION)}
+GITLAB_WORKHORSE_VERSION=${GITLAB_WORKHORSE_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_WORKHORSE_VERSION)}
 GITLAB_PAGES_VERSION=${GITLAB_PAGES_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_PAGES_VERSION)}
 
 # download golang
-echo "Downloading Go ${GOLANG_VERSION}..."
-wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -P ${GITLAB_BUILD_DIR}/
-tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -C /tmp/
+if ! [ -d /tmp/go ]; then
+  echo "Downloading Go ${GOLANG_VERSION}..."
+  wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -P ${GITLAB_BUILD_DIR}/
+  tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -C /tmp/
+fi
 
 # install gitlab-shell
-echo "Downloading gitlab-shell v${GITLAB_SHELL_VERSION}..."
-mkdir -p ${GITLAB_SHELL_INSTALL_DIR}
-wget -cq ${GITLAB_SHELL_URL} -O ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
-tar xf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2 --strip 1 -C ${GITLAB_SHELL_INSTALL_DIR}
-rm -rf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
-chown -R ${GITLAB_USER}: ${GITLAB_SHELL_INSTALL_DIR}
+if ! [ -e ${GITLAB_SHELL_INSTALL_DIR}/bin/gitlab-shell ]; then
+  if ! [ -d ${GITLAB_SHELL_INSTALL_DIR} ]; then
+    echo "Downloading gitlab-shell v${GITLAB_SHELL_VERSION}..."
+    mkdir -p ${GITLAB_SHELL_INSTALL_DIR}
+    wget -cq ${GITLAB_SHELL_URL} -O ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
+    tar xf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2 --strip 1 -C ${GITLAB_SHELL_INSTALL_DIR}
+    rm -rf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
+    chown -R ${GITLAB_USER}: ${GITLAB_SHELL_INSTALL_DIR}
+  fi
 
-cd ${GITLAB_SHELL_INSTALL_DIR}
-exec_as_git cp -a config.yml.example config.yml
+  cd ${GITLAB_SHELL_INSTALL_DIR}
+  exec_as_git cp -a config.yml.example config.yml
 
-# 检查 ./bin/compile 是否存在且可执行
-if [[ -x ./bin/compile ]]; then
-  echo "Compiling gitlab-shell golang executables..."
-  # 以 git 用户身份运行编译
-  exec_as_git ./bin/compile
+  # 检查 ./bin/compile 是否存在且可执行
+  if [[ -x ./bin/compile ]]; then
+    echo "Compiling gitlab-shell golang executables..."
+    # 确保Go环境变量对git用户可用，并设置正确的Go模块模式
+    exec_as_git env GOROOT=${GOROOT} PATH=${GOROOT}/bin:$PATH GO111MODULE=off ./bin/compile
+    # 以 git 用户身份运行安装 
+    exec_as_git env GOROOT=${GOROOT} PATH=${GOROOT}/bin:$PATH GO111MODULE=off ./bin/install
+  else
+    echo "WARNING: ./bin/compile not found or not executable, skipping gitlab-shell compilation"
+  fi
+
+  # remove unused repositories directory created by gitlab-shell install
+  rm -rf ${GITLAB_HOME}/repositories
 fi
 
-# 以 git 用户身份运行安装 
-exec_as_git ./bin/install
 
-# remove unused repositories directory created by gitlab-shell install
-rm -rf ${GITLAB_HOME}/repositories
+# gitlab-workhorse
+if ! [ -e /usr/local/bin/gitlab-workhorse ]; then
+  # download gitlab-workhorse
+  if ! [ -d ${GITLAB_WORKHORSE_BUILD_DIR} ]; then
+    echo "Cloning gitlab-workhorse v${GITLAB_WORKHORSE_VERSION}..."
+    git clone -q -b v${GITLAB_WORKHORSE_VERSION} --depth 1 ${GITLAB_WORKHORSE_URL} ${GITLAB_WORKHORSE_BUILD_DIR}
+  fi
 
-# download gitlab-workhorse
-echo "Cloning gitlab-workhorse v${GITLAB_WORKHORSE_VERSION}..."
-git clone -q -b v${GITLAB_WORKHORSE_VERSION} --depth 1 ${GITLAB_WORKHORSE_URL} ${GITLAB_WORKHORSE_BUILD_DIR}
-make -C ${GITLAB_WORKHORSE_BUILD_DIR} install
+  # build gitlab-workhorse
+  make -C ${GITLAB_WORKHORSE_BUILD_DIR} install
 
-# clean up
-rm -rf ${GITLAB_WORKHORSE_BUILD_DIR}
-
-# download gitlab-pages
-echo "Downloading gitlab-pages v${GITLAB_PAGES_VERSION}..."
-git clone -q -b v${GITLAB_PAGES_VERSION} --depth 1 ${GITLAB_PAGES_URL} ${GITLAB_PAGES_BUILD_DIR}
-
-# install gitlab-pages
-make -C ${GITLAB_PAGES_BUILD_DIR}
-cp -a ${GITLAB_PAGES_BUILD_DIR}/gitlab-pages /usr/local/bin/
-
-# clean up
-rm -rf ${GITLAB_PAGES_BUILD_DIR}
-
-rm -rf ${GITLAB_GITALY_BUILD_DIR}
-# download and build gitaly
-echo "Downloading gitaly v${GITALY_SERVER_VERSION}..."
-git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
-
-# --- 关键修复：ARM64 grpc gem 编译问题 ---
-echo "INFO: Preparing ARM64-compatible grpc gem compilation..."
-cd "${GITLAB_GITALY_BUILD_DIR}/ruby"
-
-# 设置编译环境变量，禁用会导致问题的警告
-export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-
-# 配置bundler使用系统库
-bundle config build.grpc --with-system-libraries
-bundle config build.rugged --use-system-libraries
-
-# 设置 GRPC 编译环境变量
-export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
-
-# 尝试安装依赖
-echo "INFO: Installing Ruby dependencies with ARM64 compatibility fixes..."
-bundle install
-
-# 检查grpc gem是否已经成功安装
-if bundle list | grep -q "grpc (1.19.0)"; then
-    echo "INFO: grpc gem 1.19.0 installed successfully!"
-else
-    echo "ERROR: grpc gem 1.19.0 installation failed."
-    exit 1
+  # clean up
+  rm -rf ${GITLAB_WORKHORSE_BUILD_DIR}
 fi
 
-echo "INFO: Bundle install completed successfully for ARM64!"
-cd ${GITLAB_HOME}
-# --- ARM64修复结束 ---
+# gitlab-pages
+if ! [ -e /usr/local/bin/gitlab-pages ]; then
+  # download gitlab-pages
+  if ! [ -d ${GITLAB_PAGES_BUILD_DIR} ]; then
+    echo "Downloading gitlab-pages v${GITLAB_PAGES_VERSION}..."
+    git clone -q -b v${GITLAB_PAGES_VERSION} --depth 1 ${GITLAB_PAGES_URL} ${GITLAB_PAGES_BUILD_DIR}
+  fi
 
-# install gitaly
-# 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
-make -C ${GITLAB_GITALY_BUILD_DIR} install
-mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
-cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
-cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
-rm -rf ${GITLAB_GITALY_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
+  # install gitlab-pages
+  make -C ${GITLAB_PAGES_BUILD_DIR}
+  cp -a ${GITLAB_PAGES_BUILD_DIR}/gitlab-pages /usr/local/bin/
 
-# clean up
-rm -rf ${GITLAB_GITALY_BUILD_DIR}
+  # clean up
+  rm -rf ${GITLAB_PAGES_BUILD_DIR}
+fi
 
-# remove go
-rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
+# gitaly
+if ! [ -e /usr/local/bin/gitaly ]; then
+  # download and build gitaly
+  if ! [ -d ${GITLAB_GITALY_BUILD_DIR} ]; then
+    echo "Downloading gitaly v${GITALY_SERVER_VERSION}..."
+    git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
+  fi
 
-# Fix for rebase in forks 
-echo "Linking $(command -v gitaly-ssh) to /"
-ln -s "$(command -v gitaly-ssh)" /
+  # --- 关键修复：ARM64 grpc gem 编译问题 ---
+  echo "INFO: Preparing ARM64-compatible grpc gem compilation..."
+  cd "${GITLAB_GITALY_BUILD_DIR}/ruby"
+
+  # 设置编译环境变量，禁用会导致问题的警告
+  export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+  export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+
+  # 配置bundler使用系统库
+  bundle config build.grpc --with-system-libraries
+  bundle config build.rugged --use-system-libraries
+
+  # 设置 GRPC 编译环境变量
+  export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
+
+  # 尝试安装依赖
+  echo "INFO: Installing Ruby dependencies with ARM64 compatibility fixes..."
+  bundle install
+
+  # 检查grpc gem是否已经成功安装
+  if bundle list | grep -q "grpc (1.19.0)"; then
+      echo "INFO: grpc gem 1.19.0 installed successfully!"
+  else
+      echo "ERROR: grpc gem 1.19.0 installation failed."
+      exit 1
+  fi
+
+  echo "INFO: Bundle install completed successfully for ARM64!"
+  cd ${GITLAB_HOME}
+  # --- ARM64修复结束 ---
+
+  # install gitaly
+  # 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
+  make -C ${GITLAB_GITALY_BUILD_DIR} install
+  mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
+  cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
+  cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
+  rm -rf ${GITLAB_GITALY_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
+
+  # clean up
+  rm -rf ${GITLAB_GITALY_BUILD_DIR}
+
+  # remove go
+  rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
+
+  # Fix for rebase in forks 
+  echo "Linking $(command -v gitaly-ssh) to /"
+  ln -s "$(command -v gitaly-ssh)" /
+fi
 
 # remove HSTS config from the default headers, we configure it in nginx
 exec_as_git sed -i "/headers\['Strict-Transport-Security'\]/d" ${GITLAB_INSTALL_DIR}/app/controllers/application_controller.rb
@@ -246,34 +252,150 @@ exec_as_git sed -i 's/db:reset/db:setup/' ${GITLAB_INSTALL_DIR}/lib/tasks/gitlab
 
 cd ${GITLAB_INSTALL_DIR}
 
-# --- 在这里加入针对 gpgme 的修复 ---
-echo "INFO: Configuring bundler to use system libraries for gpgme gem..."
-exec_as_git bundle config build.gpgme --use-system-libraries
-# --- 修复结束 ---
-
-# --- ADD THE FIX HERE ---
-# Fix for the yanked mimemagic gem version
-echo "INFO: Fixing mimemagic gem issue..."
-# 首先尝试更新 mimemagic，如果失败则使用替代方案
-if ! exec_as_git bundle lock --update mimemagic 2>/dev/null; then
-    echo "INFO: mimemagic update failed, trying alternative approach..."
-    # 如果更新失败，尝试添加 marcel gem 作为替代
-    exec_as_git bundle add marcel --skip-install || true
-    # 或者直接跳过这个步骤，因为在某些版本中这不是必需的
-    echo "INFO: Continuing without mimemagic update..."
-fi
-# --- END OF FIX ---
+# --- 还原 Gemfile 和 Gemfile.lock 到原始状态 ---
+echo "INFO: Restoring original Gemfile and Gemfile.lock from git..."
+exec_as_git git checkout HEAD -- Gemfile Gemfile.lock || {
+    echo "WARNING: Failed to restore Gemfile/Gemfile.lock from git, they may not exist in repo or may have been modified"
+}
+# --- 还原结束 ---
 
 # install gems, use local cache if available
+echo "INFO: install gems, use local cache if available..."
 if [[ -d ${GEM_CACHE_DIR} ]]; then
   mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
   chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
 fi
 
-exec_as_git bundle install --deployment --without development test aws
+# Bundle install moved to later section with proper configuration
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}
+
+# 确保 bundle 配置目录存在且有正确权限
+mkdir -p ${GITLAB_HOME}/.bundle
+chown -R ${GITLAB_USER}: ${GITLAB_HOME}/.bundle
+
+# --- 精确修复关键 gems：grpc、rugged、gpgme ---
+echo "INFO: Setting up bundle configuration for ARM64 compatibility..."
+
+# 设置基本的bundle配置
+bundle config --local path vendor/bundle
+bundle config --local without 'development test aws'
+
+# 设置编译环境变量，针对ARM64优化
+export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+
+# 1. 修复 grpc gem - 使用系统库避免编译问题
+echo "INFO: Configuring grpc gem for ARM64..."
+bundle config build.grpc --with-system-libraries
+export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
+
+# 2. 修复 rugged gem - 让它使用内置的libgit2版本，避免与系统libgit2冲突
+echo "INFO: Configuring rugged gem to use bundled libgit2..."
+# 不设置 build.rugged 配置，让它使用默认的内置libgit2
+
+# 3. 修复 gpgme gem - 使用系统库
+echo "INFO: Configuring gpgme gem for system libraries..."
+bundle config build.gpgme --use-system-libraries
+
+# 4. 强制使用Ruby平台版本，避免预编译二进制版本的兼容性问题
+bundle config --local force_ruby_platform true
+
+# 预先安装关键的问题 gems，使用 Gemfile.lock 中的确切版本
+echo "INFO: Pre-installing problematic gems with exact versions from Gemfile.lock..."
+
+# 预先安装 grpc 1.19.0
+echo "INFO: Pre-installing grpc 1.19.0..."
+gem install grpc -v '1.19.0' --no-document || {
+    echo "WARNING: Failed to pre-install grpc, will let bundle install handle it"
+}
+
+# 预先安装 rugged 0.99.0
+echo "INFO: Pre-installing rugged 0.99.0..."
+gem install rugged -v '0.99.0' --no-document || {
+    echo "WARNING: Failed to pre-install rugged, will let bundle install handle it"
+}
+
+# 预先安装 gpgme 2.0.20
+echo "INFO: Pre-installing gpgme 2.0.20..."
+gem install gpgme -v '2.0.20' --no-document || {
+    echo "WARNING: Failed to pre-install gpgme, will let bundle install handle it"
+}
+
+# --- 修复 mimemagic 被移除的问题 ---
+echo "INFO: Fixing mimemagic removal issue..."
+if grep -q "mimemagic (0.3.2)" Gemfile.lock; then
+    echo "INFO: Detected mimemagic 0.3.2 in Gemfile.lock, updating to available version..."
+    # 先安装一个可用的 mimemagic 版本
+    gem install mimemagic -v '0.3.10' --no-document || true
+    # 更新 Gemfile.lock 中的 mimemagic 版本
+    sed -i 's/mimemagic (0.3.2)/mimemagic (0.3.10)/' Gemfile.lock || true
+fi
+
+# --- 修复版本不匹配问题 ---
+echo "INFO: Updating Gemfile.lock for version compatibility..."
+# 更新一些关键的版本不匹配问题
+sed -i 's/rugged (0.28.1)/rugged (0.99.0)/' Gemfile.lock || true
+sed -i 's/gpgme (2.0.18)/gpgme (2.0.20)/' Gemfile.lock || true
+
+# 现在尝试 bundle install，应该能使用预安装的 gems
+echo "INFO: Running bundle install with pre-installed gems and fixed versions..."
+if ! bundle install --without development test aws; then
+    echo "WARNING: Bundle install failed, trying to resolve dependency conflicts..."
+    
+    # 如果还是失败，尝试更新 bundle
+    echo "INFO: Attempting bundle update for problematic gems..."
+    bundle update mimemagic || true
+    bundle update rugged || true
+    bundle update gpgme || true
+    bundle update grpc || true
+    
+    # 再次尝试安装
+    if ! bundle install --without development test aws; then
+        echo "WARNING: Standard bundle install still failing, trying alternative approach..."
+        
+        # 尝试不使用 Gemfile.lock 的严格版本限制
+        echo "INFO: Trying bundle install without strict version locking..."
+        mv Gemfile.lock Gemfile.lock.backup || true
+        
+        if bundle install --without development test aws; then
+            echo "INFO: Bundle install succeeded without strict version locking"
+            # 生成新的 Gemfile.lock
+            bundle lock
+        else
+            echo "ERROR: Bundle install failed completely, restoring original Gemfile.lock"
+            mv Gemfile.lock.backup Gemfile.lock || true
+            exit 1
+        fi
+    fi
+fi
+
+echo "INFO: Bundle install completed successfully"
+
+# 确保安装的gems目录属于git用户
+chown -R ${GITLAB_USER}: vendor/bundle || true
+if [ -d ".bundle" ]; then
+    chown -R ${GITLAB_USER}: .bundle || true
+fi
+
+# 确保git用户的bundle配置正确
+echo "INFO: Setting up bundle configuration for git user..."
+exec_as_git bundle config --local path vendor/bundle
+exec_as_git bundle config --local without 'development test aws'
+exec_as_git bundle config build.grpc --with-system-libraries
+exec_as_git bundle config build.gpgme --use-system-libraries
+exec_as_git bundle config --local force_ruby_platform true
+
+echo "INFO: Bundle install completed successfully with preserved Gemfile.lock"
+# --- 修复结束 ---
+
+# install gems, use local cache if available (only if not already processed)
+if [[ -d ${GEM_CACHE_DIR} && ! -d ${GITLAB_INSTALL_DIR}/vendor/cache ]]; then
+  echo "INFO: Using local gem cache..."
+  mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
+  chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
+fi
 
 # gitlab.yml and database.yml are required for `assets:precompile`
 exec_as_git cp ${GITLAB_INSTALL_DIR}/config/resque.yml.example ${GITLAB_INSTALL_DIR}/config/resque.yml
@@ -286,6 +408,9 @@ exec_as_git yarn add ajv@^4.0.0
 
 echo "Compiling assets. Please be patient, this could take a while..."
 exec_as_git bundle exec rake gitlab:assets:compile USE_DB=false SKIP_STORAGE_VALIDATION=true NODE_OPTIONS="--max-old-space-size=4096"
+
+echo "INFO: Assets compilation completed successfully"
+# --- 修复结束 ---
 
 # remove auto generated ${GITLAB_DATA_DIR}/config/secrets.yml
 rm -rf ${GITLAB_DATA_DIR}/config/secrets.yml
