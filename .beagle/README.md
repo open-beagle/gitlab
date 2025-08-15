@@ -103,14 +103,14 @@ docker run \
     -v ./assets/runtime:/etc/docker-gitlab/runtime \
     -v ${PWD}/.tmp/log:/var/log/gitlab \
     --publish 10022:22 \
-    --publish 10080:80 \
-    --env 'GITLAB_PORT=10080' \
+    --publish 8080:80 \
+    --env 'GITLAB_PORT=8080' \
     --env 'GITLAB_SSH_PORT=10022' \
     --env 'GITLAB_SECRETS_DB_KEY_BASE=M7VrtgxmhTCVfLPPdCKXFKXrsJcC4bwphrkbx44NcJJkdK7jr9Fq9XxfrrwddbHR' \
     --env 'GITLAB_SECRETS_SECRET_KEY_BASE=3dbKvRTXxTnrFXt4P7fwhfxRRHgXmbtr7sVszXF7FXKqdtMfnRmMmtXbRmrTpfpL' \
     --env 'GITLAB_SECRETS_OTP_KEY_BASE=cvF9pvcq3CJ974jzNbpdrv4dKxrNkRJdKv7K4rX97HpxfmczqzqbtVcmHbWJbKbr' \
     --entrypoint=bash \
-    registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64
+    registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 \
     /sbin/entrypoint.sh app:start
 
 docker rm -f gitlab
