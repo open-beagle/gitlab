@@ -54,7 +54,7 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         software-properties-common sudo supervisor logrotate locales \
         apt-transport-https openssh-server gettext-base \
-        shared-mime-info gawk bison libtool sqlite3 libgpgme11 libmariadb-dev \
+        shared-mime-info gawk bison libtool sqlite3 libgpgme11 \
         default-mysql-client postgresql-client redis-tools \
         python2.7 && \
     rm -rf /var/lib/apt/lists/*

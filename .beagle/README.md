@@ -75,7 +75,7 @@ docker tag sameersbn/redis:4.0.9-1 registry.cn-qingdao.aliyuncs.com/wod/redis:4.
 docker push registry.cn-qingdao.aliyuncs.com/wod/redis:4.0.9-sameersbn
 
 docker run --name gitlab-redis -d \
-    --volume ./.tmp/redis:/var/lib/redis \
+    --volume ${PWD}/.tmp/redis:/var/lib/redis \
     registry.cn-qingdao.aliyuncs.com/wod/redis:4.0.9-sameersbn
 
 docker rm -f gitlab-redis
@@ -87,7 +87,7 @@ docker push registry.cn-qingdao.aliyuncs.com/wod/mysql:5.7.22-sameersbn
 docker run --name gitlab-mysql -d \
     --env 'DB_NAME=gitlabhq_production' \
     --env 'DB_USER=gitlab' --env 'DB_PASS=password' \
-    --volume ./.tmp/mysql:/var/lib/mysql \
+    --volume ${PWD}/.tmp/mysql:/var/lib/mysql \
     registry.cn-qingdao.aliyuncs.com/wod/mysql:5.7.22-sameersbn
 
 docker rm -f gitlab-mysql
@@ -99,16 +99,16 @@ docker run \
     --name gitlab \
     --link gitlab-mysql:mysql \
     --link gitlab-redis:redisio \
-    -v ./.tmp/gitlab:/home/git/data \
+    -v ${PWD}/.tmp/gitlab:/home/git/data \
     -v ./assets/runtime:/etc/docker-gitlab/runtime \
-    -v ./.tmp/log:/var/log/gitlab \
+    -v ${PWD}/.tmp/log:/var/log/gitlab \
     --publish 10022:22 \
     --publish 10080:80 \
     --env 'GITLAB_PORT=10080' \
     --env 'GITLAB_SSH_PORT=10022' \
-    --env 'GITLAB_SECRETS_DB_KEY_BASE=long-and-random-alpha-numeric-string' \
-    --env 'GITLAB_SECRETS_SECRET_KEY_BASE=long-and-random-alpha-numeric-string' \
-    --env 'GITLAB_SECRETS_OTP_KEY_BASE=long-and-random-alpha-numeric-string' \
+    --env 'GITLAB_SECRETS_DB_KEY_BASE=M7VrtgxmhTCVfLPPdCKXFKXrsJcC4bwphrkbx44NcJJkdK7jr9Fq9XxfrrwddbHR' \
+    --env 'GITLAB_SECRETS_SECRET_KEY_BASE=3dbKvRTXxTnrFXt4P7fwhfxRRHgXmbtr7sVszXF7FXKqdtMfnRmMmtXbRmrTpfpL' \
+    --env 'GITLAB_SECRETS_OTP_KEY_BASE=cvF9pvcq3CJ974jzNbpdrv4dKxrNkRJdKv7K4rX97HpxfmczqzqbtVcmHbWJbKbr' \
     --entrypoint=bash \
     registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64
     /sbin/entrypoint.sh app:start

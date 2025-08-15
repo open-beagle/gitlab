@@ -45,7 +45,10 @@ BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   autoconf automake libsqlite3-dev"
 
 # 运行时需要的库（不能删除）
-RUNTIME_DEPENDENCIES="libre2-5 libgrpc6 libprotobuf17"
+RUNTIME_DEPENDENCIES="libre2-5 libgrpc6 libprotobuf17 libmariadb3 libpq5 \
+  libgpgme11 libassuan0 libgpg-error0 \
+  zlib1g libyaml-0-2 libssl1.1 libgdbm6 libreadline7 libncurses6 libffi6 \
+  libxml2 libxslt1.1 libcurl4 libicu63 libkrb5-3 libgmp10 libssh2-1 libsqlite3-0"
 
 ## Execute a command as GITLAB_USER
 exec_as_git() {
