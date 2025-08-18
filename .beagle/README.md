@@ -13,29 +13,57 @@ git merge 11.11.3
 ## build
 
 ```bash
-# debug
-docker run -it --rm \
-  -v ${PWD}:/go/src/github.com/open-beagle/gitlab \
-  registry.cn-qingdao.aliyuncs.com/wod/ubuntu:20.04-amd64 \
-  bash
-
 # amd64
 docker buildx build \
   --platform linux/amd64 \
-  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ubuntu:20.04-amd64 \
+  --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-amd64 \
+  --build-arg TARGET_ARCH=amd64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64 \
-  -f .beagle/Dockerfile \
+  -f .beagle/arch.Dockerfile \
   --load .
 
 # arm64
 docker buildx build \
   --platform linux/arm64 \
   --build-arg BASE=registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
+  --build-arg TARGET_ARCH=arm64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 \
-  -f .beagle/arm64.Dockerfile \
+  -f .beagle/arch.Dockerfile \
   --load . && \
 docker push registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64
 
+# debug amd64
+sudo rm -rf $PWD/.tmp/git && \
+docker run -it --rm \
+  -e GITLAB_VERSION=11.11.3 \
+  -e RUBY_VERSION=2.5.8 \
+  -e GOLANG_VERSION=1.12.6 \
+  -e GITLAB_SHELL_VERSION=9.1.0 \
+  -e GITLAB_WORKHORSE_VERSION=8.7.0 \
+  -e GITLAB_PAGES_VERSION=1.5.0 \
+  -e GITALY_SERVER_VERSION=1.42.7 \
+  -e GITLAB_USER="git" \
+  -e GITLAB_HOME="/home/git" \
+  -e GITLAB_LOG_DIR="/var/log/gitlab" \
+  -e GITLAB_CACHE_DIR="/etc/docker-gitlab" \
+  -e RAILS_ENV=production \
+  -e NODE_ENV=production \
+  -e GITLAB_INSTALL_DIR="/home/git/gitlab" \
+  -e GITLAB_SHELL_INSTALL_DIR="/home/git/gitlab-shell" \
+  -e GITLAB_GITALY_INSTALL_DIR="/home/git/gitaly" \
+  -e GITLAB_DATA_DIR="/home/git/data" \
+  -e GITLAB_BUILD_DIR="/etc/docker-gitlab/build" \
+  -e GITLAB_RUNTIME_DIR="/etc/docker-gitlab/runtime" \
+  -v $PWD:/go/src/github.com/open-beagle/gitlab \
+  -w /go/src/github.com/open-beagle/gitlab \
+  -v $PWD/.tmp:/home \
+  registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-amd64 \
+  bash -c "
+    bash .beagle/base.sh && \
+    bash .beagle/install_amd64.sh
+  "
+
+# debug arm64
 sudo rm -rf $PWD/.tmp/git && \
 docker run -it --rm \
   -e GITLAB_VERSION=11.11.3 \
@@ -62,7 +90,7 @@ docker run -it --rm \
   -v $PWD/.tmp:/home \
   registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
   bash -c "
-    bash .beagle/install_arm64_base.sh && \
+    bash .beagle/base.sh && \
     bash .beagle/install_arm64.sh
   "
 ```
@@ -92,6 +120,29 @@ docker run --name gitlab-mysql -d \
 
 docker rm -f gitlab-mysql
 
+# amd64
+docker pull registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64 && \
+docker run \
+    -it \
+    --rm \
+    --name gitlab \
+    --link gitlab-mysql:mysql \
+    --link gitlab-redis:redisio \
+    -v ${PWD}/.tmp/gitlab:/home/git/data \
+    -v ./assets/runtime:/etc/docker-gitlab/runtime \
+    -v ${PWD}/.tmp/log:/var/log/gitlab \
+    --publish 10022:22 \
+    --publish 8080:80 \
+    --env 'GITLAB_PORT=8080' \
+    --env 'GITLAB_SSH_PORT=10022' \
+    --env 'GITLAB_SECRETS_DB_KEY_BASE=M7VrtgxmhTCVfLPPdCKXFKXrsJcC4bwphrkbx44NcJJkdK7jr9Fq9XxfrrwddbHR' \
+    --env 'GITLAB_SECRETS_SECRET_KEY_BASE=3dbKvRTXxTnrFXt4P7fwhfxRRHgXmbtr7sVszXF7FXKqdtMfnRmMmtXbRmrTpfpL' \
+    --env 'GITLAB_SECRETS_OTP_KEY_BASE=cvF9pvcq3CJ974jzNbpdrv4dKxrNkRJdKv7K4rX97HpxfmczqzqbtVcmHbWJbKbr' \
+    --entrypoint=bash \
+    registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64 \
+    /sbin/entrypoint.sh app:start
+
+# arm64
 docker pull registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-arm64 && \
 docker run \
     -it \
@@ -116,16 +167,14 @@ docker run \
 docker rm -f gitlab
 ```
 
-## gitlay
+## ruby:2.5.8
 
 ```bash
+docker pull --platform=linux/amd64 ruby:2.5.8 && \
+docker tag ruby:2.5.8 registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-amd64 && \
+docker push registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-amd64
+
 docker pull --platform=linux/arm64 ruby:2.5.8 && \
 docker tag ruby:2.5.8 registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 && \
 docker push registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64
-
-docker run -it --rm \
-    -v $PWD:/go/src/github.com/open-beagle/gitlab \
-    -w /go/src/github.com/open-beagle/gitlab \
-    registry.cn-qingdao.aliyuncs.com/wod/ruby:2.5.8-arm64 \
-    bash .beagle/gitaly.sh
 ```

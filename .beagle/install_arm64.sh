@@ -160,7 +160,6 @@ if ! [ -e ${GITLAB_SHELL_INSTALL_DIR}/bin/gitlab-shell ]; then
   rm -rf ${GITLAB_HOME}/repositories
 fi
 
-
 # gitlab-workhorse
 if ! [ -e /usr/local/bin/gitlab-workhorse ]; then
   # download gitlab-workhorse
@@ -202,33 +201,17 @@ if ! [ -e /usr/local/bin/gitaly ]; then
 
   # --- 关键修复：ARM64 grpc gem 编译问题 ---
   echo "INFO: Preparing ARM64-compatible grpc gem compilation..."
-  cd "${GITLAB_GITALY_BUILD_DIR}/ruby"
 
   # 设置编译环境变量，禁用会导致问题的警告
   export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
   export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
 
-  # 配置bundler使用系统库
+  # 配置grpc使用系统库
   bundle config build.grpc --with-system-libraries
-  # rugged 将在后面单独配置，不在这里设置
-
   # 设置 GRPC 编译环境变量
   export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
 
-  # 尝试安装依赖
-  echo "INFO: Installing Ruby dependencies with ARM64 compatibility fixes..."
-  bundle install
-
-  # 检查grpc gem是否已经成功安装
-  if bundle list | grep -q "grpc (1.19.0)"; then
-      echo "INFO: grpc gem 1.19.0 installed successfully!"
-  else
-      echo "ERROR: grpc gem 1.19.0 installation failed."
-      exit 1
-  fi
-
   echo "INFO: Bundle install completed successfully for ARM64!"
-  cd ${GITLAB_HOME}
   # --- ARM64修复结束 ---
 
   # install gitaly
@@ -260,33 +243,24 @@ cd ${GITLAB_INSTALL_DIR}
 
 # --- 还原 Gemfile 和 Gemfile.lock 到原始状态 ---
 echo "INFO: Restoring original Gemfile and Gemfile.lock from git..."
-exec_as_git git checkout HEAD -- Gemfile Gemfile.lock || {
-    echo "WARNING: Failed to restore Gemfile/Gemfile.lock from git, they may not exist in repo or may have been modified"
-}
+exec_as_git git config --global --add safe.directory ${GITLAB_INSTALL_DIR}
+exec_as_git git checkout HEAD -- Gemfile Gemfile.lock
 # --- 还原结束 ---
 
 # install gems, use local cache if available
-echo "INFO: install gems, use local cache if available..."
 if [[ -d ${GEM_CACHE_DIR} ]]; then
   mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
-  chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
 fi
+chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor
+chown -R ${GITLAB_USER}: /usr/local/bundle/config
 
 # Bundle install moved to later section with proper configuration
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}
 
-# 确保 bundle 配置目录存在且有正确权限
-mkdir -p ${GITLAB_HOME}/.bundle
-chown -R ${GITLAB_USER}: ${GITLAB_HOME}/.bundle
-
 # --- 精确修复关键 gems：grpc、rugged、gpgme ---
 echo "INFO: Setting up bundle configuration for ARM64 compatibility..."
-
-# 设置基本的bundle配置
-bundle config --local path vendor/bundle
-bundle config --local without 'development test aws'
 
 # 设置编译环境变量，针对ARM64优化
 export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
@@ -330,20 +304,15 @@ gem install gpgme -v '2.0.20' --no-document || {
     echo "WARNING: Failed to pre-install gpgme, will let bundle install handle it"
 }
 
-# --- 彻底修复 mimemagic 和依赖问题 ---
-echo "INFO: Fixing mimemagic and dependency issues..."
-
-# 首先禁用 deployment 模式，允许修改 Gemfile.lock
-bundle config --delete deployment || true
-bundle config --delete frozen || true
-
 # 修复 mimemagic 问题 - 使用一个兼容的版本
-if grep -q "mimemagic (0.3.2)" Gemfile.lock; then
-    echo "INFO: Replacing mimemagic 0.3.2 with compatible version..."
-    # 使用 mimemagic 0.3.5，这个版本比较稳定且不需要额外依赖
-    gem install mimemagic -v '0.3.5' --no-document || true
-    # 更新 Gemfile.lock
-    sed -i 's/mimemagic (0.3.2)/mimemagic (0.3.5)/' Gemfile.lock || true
+if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
+  echo "INFO: Replacing mimemagic 0.3.2 with compatible version..."
+  # 使用 mimemagic 0.3.10，这个版本比较稳定且不需要额外依赖
+  sed -i "s/gem 'mimemagic'.*/gem 'mimemagic', '~> 0.3.10'/" Gemfile
+  # 更新 Gemfile.lock
+  exec_as_git bundle config --delete deployment
+  exec_as_git bundle config --delete frozen
+  exec_as_git bundle update mimemagic --conservative
 fi
 
 # 修复版本不匹配问题
@@ -353,7 +322,7 @@ sed -i 's/gpgme (2.0.18)/gpgme (2.0.20)/' Gemfile.lock || true
 
 # 尝试 bundle install，使用 --full-index 来解决依赖问题
 echo "INFO: Running bundle install with full index..."
-if ! bundle install --without development test aws --full-index; then
+if ! bundle install --path vendor/bundle --without development test aws --full-index; then
     echo "WARNING: Bundle install with full-index failed, trying update approach..."
     
     # 尝试更新有问题的 gems
@@ -361,7 +330,7 @@ if ! bundle install --without development test aws --full-index; then
     bundle update mimemagic --conservative || true
     
     # 再次尝试安装
-    if ! bundle install --without development test aws; then
+    if ! bundle install --path vendor/bundle --without development test aws; then
         echo "WARNING: Still failing, trying complete dependency resolution..."
         
         # 最后的方案：重新生成 Gemfile.lock

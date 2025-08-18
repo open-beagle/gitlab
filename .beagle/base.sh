@@ -8,11 +8,6 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 清理可能存在的锁文件
-rm -f /var/lib/apt/lists/lock
-rm -f /var/cache/apt/archives/lock
-rm -f /var/lib/dpkg/lock*
-
 # --- 构建依赖安装 ---
 # 步骤1：更新软件源配置
 sed -i -e 's/deb.debian.org/archive.debian.org/g' \
@@ -43,7 +38,6 @@ DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
     shared-mime-info gawk bison libtool sqlite3 libgpgme11 libmariadb-dev \
     default-mysql-client postgresql-client redis-tools \
     python2.7
-rm -rf /var/lib/apt/lists/*
 
 # 步骤5：安装 Nginx 和通过 npm 安装 Yarn
 apt-get update
@@ -53,6 +47,3 @@ npm install -g yarn
 
 # 步骤6：清理 apt 缓存和锁文件
 rm -rf /var/lib/apt/lists/*
-rm -f /var/lib/apt/lists/lock
-rm -f /var/cache/apt/archives/lock
-rm -f /var/lib/dpkg/lock*

@@ -35,91 +35,48 @@ export GOROOT PATH
 
 BUILD_DEPENDENCIES="gcc g++ make patch pkg-config cmake build-essential \
   python2.7-dev python-docutils \
-  libc6-dev paxctl \
-  libmysqlclient-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
+  libc6-dev \
+  libmariadb-dev-compat libmariadb-dev libpq-dev zlib1g-dev libyaml-dev libssl-dev \
   libgdbm-dev libreadline-dev libncurses5-dev libffi-dev \
   libxml2-dev libxslt-dev libcurl4-openssl-dev libicu-dev \
   gettext libkrb5-dev libgmp-dev libre2-dev \
   libgpg-error-dev libassuan-dev libgpgme-dev \
-  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev \
+  libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libssh2-1-dev libxslt1-dev \
   autoconf automake libsqlite3-dev"
+
+# 运行时需要的库（不能删除）
+RUNTIME_DEPENDENCIES="libre2-5 libgrpc6 libprotobuf17 libmariadb3 libpq5 \
+  libgpgme11 libassuan0 libgpg-error0 \
+  zlib1g libyaml-0-2 libssl1.1 libgdbm6 libreadline7 libncurses6 libffi6 \
+  libxml2 libxslt1.1 libcurl4 libicu63 libkrb5-3 libgmp10 libssh2-1 libsqlite3-0"
 
 ## Execute a command as GITLAB_USER
 exec_as_git() {
   if [[ $(whoami) == "${GITLAB_USER}" ]]; then
     "$@"
   else
-    # 使用 -l (login) 标志启动一个登录式的shell，
-    # 这会强制加载 /home/git/.profile 文件，从而初始化RVM环境
-    sudo -HEu ${GITLAB_USER} bash -l -c 'exec "$@"' sh-as-git "$@"
+    sudo -HEu ${GITLAB_USER} "$@"
   fi
 }
 
 # install build dependencies for gem installation
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES}
-
-# PaX-mark ruby
-# Applying the mark late here does make the build usable on PaX kernels, but
-# still the build itself must be executed on a non-PaX kernel. It's done here
-# only for simplicity.
-# https://en.wikibooks.org/wiki/Grsecurity/Application-specific_Settings#Node.js
-# paxctl -Cm "$(command -v nodejs)"
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${BUILD_DEPENDENCIES} ${RUNTIME_DEPENDENCIES}
 
 # remove the host keys generated during openssh-server installation
 rm -rf /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
 
 # add ${GITLAB_USER} user
-adduser --disabled-login --gecos 'GitLab' ${GITLAB_USER}
-passwd -d ${GITLAB_USER}
-
-# install node.js
-exec_as_git bash -c "
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-"
-exec_as_git bash -c '
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  nvm install 8
-'
-
-# install ruby
-exec_as_git bash -c "
-  gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
-  curl -sSL https://get.rvm.io | bash -s stable --ruby=${RUBY_VERSION} --autolibs=read-only
-"
-# install ruby
-exec_as_git bash -c "
-  gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
-  curl -sSL https://get.rvm.io | bash -s stable --autolibs=read-only
-"
-exec_as_git bash -c "
-  source ${GITLAB_HOME}/.rvm/scripts/rvm
-  # 先安装 GitLab 主程序需要的 2.5.3
-  rvm install ${RUBY_VERSION}
-  # 将 2.5.3 设置为默认版本
-  rvm use ${RUBY_VERSION} --default
-  # 安装 bundler
-  gem install --no-document bundler -v 1.17.3
-"
-
-# ---> 在这里加入用户专属的 RVM 配置 <---
-echo "INFO: Configuring RVM to disable project .ruby-version files for the '${GITLAB_USER}' user..."
-exec_as_git echo "rvm_project_rvmrc=0" >> ${GITLAB_HOME}/.rvmrc
+if ! id "${GITLAB_USER}" >/dev/null 2>&1; then
+  echo "INFO: User '${GITLAB_USER}' not found, creating it..."
+  adduser --disabled-login --gecos 'GitLab' --home ${GITLAB_HOME} ${GITLAB_USER}
+  passwd -d ${GITLAB_USER}
+else
+  echo "INFO: User '${GITLAB_USER}' already exists, skipping creation."
+fi
 
 cat >> ${GITLAB_HOME}/.profile <<EOF
 PATH=/usr/local/sbin:/usr/local/bin:\$PATH
-
-# NVM (Node Version Manager)
-# --------------------------
-export NVM_DIR="\$HOME/.nvm"
-# This loads nvm
-[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-# This loads nvm bash_completion
-[ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
-
-# RVM is installed in the user's home directory
-source \${HOME}/.rvm/scripts/rvm
 
 # Golang
 GOROOT=/tmp/go
@@ -132,90 +89,109 @@ exec_as_git git config --global gc.auto 0
 exec_as_git git config --global repack.writeBitmaps true
 exec_as_git git config --global receive.advertisePushOptions true
 
-
 # shallow clone gitlab-ce
-echo "Cloning gitlab-ce v.${GITLAB_VERSION}..."
-exec_as_git git clone -q --depth 1 --branch v${GITLAB_VERSION} ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
+if ! [ -d ${GITLAB_INSTALL_DIR} ]; then
+  echo "Cloning gitlab-ce v${GITLAB_VERSION}..."
+  exec_as_git git clone -q --depth 1 --branch v${GITLAB_VERSION} ${GITLAB_CLONE_URL} ${GITLAB_INSTALL_DIR}
+fi
 
 GITLAB_SHELL_VERSION=${GITLAB_SHELL_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_SHELL_VERSION)}
-GITLAB_WORKHORSE_VERSION=${GITLAB_WORKHOUSE_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_WORKHORSE_VERSION)}
+GITLAB_WORKHORSE_VERSION=${GITLAB_WORKHORSE_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_WORKHORSE_VERSION)}
 GITLAB_PAGES_VERSION=${GITLAB_PAGES_VERSION:-$(cat ${GITLAB_INSTALL_DIR}/GITLAB_PAGES_VERSION)}
 
 # download golang
-echo "Downloading Go ${GOLANG_VERSION}..."
-wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -P ${GITLAB_BUILD_DIR}/
-tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -C /tmp/
-
-# install gitlab-shell
-echo "Downloading gitlab-shell v.${GITLAB_SHELL_VERSION}..."
-mkdir -p ${GITLAB_SHELL_INSTALL_DIR}
-wget -cq ${GITLAB_SHELL_URL} -O ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
-tar xf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2 --strip 1 -C ${GITLAB_SHELL_INSTALL_DIR}
-rm -rf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
-chown -R ${GITLAB_USER}: ${GITLAB_SHELL_INSTALL_DIR}
-
-cd ${GITLAB_SHELL_INSTALL_DIR}
-exec_as_git cp -a config.yml.example config.yml
-
-# 检查 ./bin/compile 是否存在且可执行
-if [[ -x ./bin/compile ]]; then
-  echo "Compiling gitlab-shell golang executables..."
-  # 以 git 用户身份运行编译
-  exec_as_git ./bin/compile
+if ! [ -d /tmp/go ]; then
+  echo "Downloading Go ${GOLANG_VERSION}..."
+  wget -cnv https://storage.googleapis.com/golang/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -P ${GITLAB_BUILD_DIR}/
+  tar -xf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz -C /tmp/
 fi
 
-# 以 git 用户身份运行安装
-exec_as_git ./bin/install
+# install gitlab-shell
+if ! [ -e ${GITLAB_SHELL_INSTALL_DIR}/bin/gitlab-shell ]; then
+  if ! [ -d ${GITLAB_SHELL_INSTALL_DIR} ]; then
+    echo "Downloading gitlab-shell v${GITLAB_SHELL_VERSION}..."
+    mkdir -p ${GITLAB_SHELL_INSTALL_DIR}
+    wget -cq ${GITLAB_SHELL_URL} -O ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
+    tar xf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2 --strip 1 -C ${GITLAB_SHELL_INSTALL_DIR}
+    rm -rf ${GITLAB_BUILD_DIR}/gitlab-shell-${GITLAB_SHELL_VERSION}.tar.bz2
+    chown -R ${GITLAB_USER}: ${GITLAB_SHELL_INSTALL_DIR}
+  fi
 
-# remove unused repositories directory created by gitlab-shell install
-rm -rf ${GITLAB_HOME}/repositories
+  cd ${GITLAB_SHELL_INSTALL_DIR}
+  exec_as_git cp -a config.yml.example config.yml
 
-# download gitlab-workhorse
-echo "Cloning gitlab-workhorse v.${GITLAB_WORKHORSE_VERSION}..."
-git clone -q -b v${GITLAB_WORKHORSE_VERSION} --depth 1 ${GITLAB_WORKHORSE_URL} ${GITLAB_WORKHORSE_BUILD_DIR}
-make -C ${GITLAB_WORKHORSE_BUILD_DIR} install
+  # 检查 ./bin/compile 是否存在且可执行
+  if [[ -x ./bin/compile ]]; then
+    echo "Compiling gitlab-shell golang executables..."
+    # 确保Go环境变量对git用户可用，并设置正确的Go模块模式
+    exec_as_git env GOROOT=${GOROOT} PATH=${GOROOT}/bin:$PATH GO111MODULE=off ./bin/compile
+    # 以 git 用户身份运行安装 
+    exec_as_git env GOROOT=${GOROOT} PATH=${GOROOT}/bin:$PATH GO111MODULE=off ./bin/install
+  else
+    echo "WARNING: ./bin/compile not found or not executable, skipping gitlab-shell compilation"
+  fi
 
-# clean up
-rm -rf ${GITLAB_WORKHORSE_BUILD_DIR}
+  # remove unused repositories directory created by gitlab-shell install
+  rm -rf ${GITLAB_HOME}/repositories
+fi
 
-# download gitlab-pages
-echo "Downloading gitlab-pages v.${GITLAB_PAGES_VERSION}..."
-git clone -q -b v${GITLAB_PAGES_VERSION} --depth 1 ${GITLAB_PAGES_URL} ${GITLAB_PAGES_BUILD_DIR}
+# gitlab-workhorse
+if ! [ -e /usr/local/bin/gitlab-workhorse ]; then
+  # download gitlab-workhorse
+  if ! [ -d ${GITLAB_WORKHORSE_BUILD_DIR} ]; then
+    echo "Cloning gitlab-workhorse v${GITLAB_WORKHORSE_VERSION}..."
+    git clone -q -b v${GITLAB_WORKHORSE_VERSION} --depth 1 ${GITLAB_WORKHORSE_URL} ${GITLAB_WORKHORSE_BUILD_DIR}
+  fi
 
-# install gitlab-pages
-make -C ${GITLAB_PAGES_BUILD_DIR}
-cp -a ${GITLAB_PAGES_BUILD_DIR}/gitlab-pages /usr/local/bin/
+  # build gitlab-workhorse
+  make -C ${GITLAB_WORKHORSE_BUILD_DIR} install
 
-# clean up
-rm -rf ${GITLAB_PAGES_BUILD_DIR}
+  # clean up
+  rm -rf ${GITLAB_WORKHORSE_BUILD_DIR}
+fi
 
-# download and build gitaly
-echo "Downloading gitaly v.${GITALY_SERVER_VERSION}..."
-git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
+# gitlab-pages
+if ! [ -e /usr/local/bin/gitlab-pages ]; then
+  # download gitlab-pages
+  if ! [ -d ${GITLAB_PAGES_BUILD_DIR} ]; then
+    echo "Downloading gitlab-pages v${GITLAB_PAGES_VERSION}..."
+    git clone -q -b v${GITLAB_PAGES_VERSION} --depth 1 ${GITLAB_PAGES_URL} ${GITLAB_PAGES_BUILD_DIR}
+  fi
 
-# ---> 核心修正：让当前的 root 用户加载刚刚为 git 用户安装好的 RVM 环境 <---
-# 这一步至关重要，它让 root 也能找到 rvm 命令
-echo "INFO: Sourcing RVM environment for the root user..."
-source "${GITLAB_HOME}/.rvm/scripts/rvm"
+  # install gitlab-pages
+  make -C ${GITLAB_PAGES_BUILD_DIR}
+  cp -a ${GITLAB_PAGES_BUILD_DIR}/gitlab-pages /usr/local/bin/
 
-# install gitaly
-# 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
-bash -c "rvm use ${RUBY_VERSION} && make -C ${GITLAB_GITALY_BUILD_DIR} install"
-mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
-cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
-cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
-rm -rf ${GITLAB_GITALY_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
-chown -R ${GITLAB_USER}: ${GITLAB_GITALY_INSTALL_DIR}
+  # clean up
+  rm -rf ${GITLAB_PAGES_BUILD_DIR}
+fi
 
-# clean up
-rm -rf ${GITLAB_GITALY_BUILD_DIR}
+# gitaly
+if ! [ -e /usr/local/bin/gitaly ]; then
+  # download and build gitaly
+  if ! [ -d ${GITLAB_GITALY_BUILD_DIR} ]; then
+    echo "Downloading gitaly v${GITALY_SERVER_VERSION}..."
+    git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
+  fi
 
-# remove go
-rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
+  # install gitaly
+  # 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
+  make -C ${GITLAB_GITALY_BUILD_DIR} install
+  mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
+  cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
+  cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
+  rm -rf ${GITLAB_GITALY_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
 
-# Fix for rebase in forks 
-echo "Linking $(command -v gitaly-ssh) to /"
-ln -s "$(command -v gitaly-ssh)" /
+  # clean up
+  rm -rf ${GITLAB_GITALY_BUILD_DIR}
+
+  # remove go
+  rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
+
+  # Fix for rebase in forks 
+  echo "Linking $(command -v gitaly-ssh) to /"
+  ln -s "$(command -v gitaly-ssh)" /
+fi
 
 # remove HSTS config from the default headers, we configure it in nginx
 exec_as_git sed -i "/headers\['Strict-Transport-Security'\]/d" ${GITLAB_INSTALL_DIR}/app/controllers/application_controller.rb
@@ -225,24 +201,28 @@ exec_as_git sed -i 's/db:reset/db:setup/' ${GITLAB_INSTALL_DIR}/lib/tasks/gitlab
 
 cd ${GITLAB_INSTALL_DIR}
 
-# --- 在这里加入针对 gpgme 的修复 ---
-echo "INFO: Configuring bundler to use system libraries for gpgme gem..."
-exec_as_git bundle config build.gpgme --use-system-libraries
-# --- 修复结束 ---
-
-# --- ADD THE FIX HERE ---
-# Fix for the yanked mimemagic gem version
-echo "INFO: Updating mimemagic gem version in Gemfile.lock to a non-yanked version..."
-exec_as_git bundle lock --update mimemagic
-# --- END OF FIX ---
-
 # install gems, use local cache if available
 if [[ -d ${GEM_CACHE_DIR} ]]; then
   mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
-  chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
+fi
+chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor
+chown -R ${GITLAB_USER}: /usr/local/bundle/config
+
+exec_as_git git config --global --add safe.directory ${GITLAB_INSTALL_DIR}
+exec_as_git git checkout HEAD -- Gemfile Gemfile.lock
+# 修复 mimemagic 问题 - 使用一个兼容的版本
+if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
+  echo "INFO: Replacing mimemagic 0.3.2 with compatible version..."
+  # 使用 mimemagic 0.3.10，这个版本比较稳定且不需要额外依赖
+  sed -i "s/gem 'mimemagic'.*/gem 'mimemagic', '~> 0.3.10'/" Gemfile
+  # 更新 Gemfile.lock
+  exec_as_git bundle config --delete deployment
+  exec_as_git bundle config --delete frozen
+  exec_as_git bundle config --local path vendor/bundle
+  exec_as_git bundle update mimemagic --conservative
 fi
 
-exec_as_git bundle install --deployment --without development test aws
+exec_as_git bundle install -j"$(nproc)" --path vendor/bundle --without development test aws
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}
@@ -293,7 +273,9 @@ cp ${GITLAB_INSTALL_DIR}/lib/support/init.d/gitlab /etc/init.d/gitlab
 chmod +x /etc/init.d/gitlab
 
 # disable default nginx configuration and enable gitlab's nginx configuration
-rm -rf /etc/nginx/sites-enabled/default
+# 创建 conf.d 目录（如果不存在）并移除默认配置
+mkdir -p /etc/nginx/conf.d
+rm -rf /etc/nginx/conf.d/default.conf
 
 # configure sshd
 sed -i \
@@ -491,8 +473,13 @@ stdout_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 stderr_logfile=${GITLAB_LOG_DIR}/supervisor/%(program_name)s.log
 EOF
 
-# purge build dependencies and cleanup apt
-DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove ${BUILD_DEPENDENCIES}
+# purge build dependencies and cleanup apt (keep runtime dependencies)
+echo "INFO: Removing build dependencies while keeping runtime libraries..."
+DEBIAN_FRONTEND=noninteractive apt-get purge -y ${BUILD_DEPENDENCIES}
+# 确保运行时依赖没有被自动删除
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ${RUNTIME_DEPENDENCIES}
+# 清理不需要的包，但保护运行时依赖
+DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
 rm -rf /var/lib/apt/lists/*
 
 # clean up caches

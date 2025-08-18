@@ -33,14 +33,15 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./.beagle/Dockerfile
+          file: ./.beagle/arch.Dockerfile
           platforms: linux/amd64
           push: true
           provenance: false
           tags: |
             ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-amd64
           build-args: |
-            BASE=ubuntu:focal
+            BASE=ruby:2.5.8
+            TARGET_ARCH=amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -48,7 +49,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./.beagle/arm64.Dockerfile
+          file: ./.beagle/arch.Dockerfile
           platforms: linux/arm64
           push: true
           provenance: false
@@ -56,6 +57,7 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-arm64
           build-args: |
             BASE=ruby:2.5.8
+            TARGET_ARCH=arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
