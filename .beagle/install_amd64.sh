@@ -222,7 +222,7 @@ if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
   exec_as_git bundle update mimemagic --conservative
 fi
 
-exec_as_git bundle install -j"$(nproc)" --path vendor/bundle --without development test aws
+exec_as_git bundle install -j"$(nproc)" --local --without development test aws
 
 # make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
 chown -R ${GITLAB_USER}: ${GITLAB_HOME}

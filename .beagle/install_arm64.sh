@@ -197,26 +197,18 @@ if ! [ -e /usr/local/bin/gitaly ]; then
   if ! [ -d ${GITLAB_GITALY_BUILD_DIR} ]; then
     echo "Downloading gitaly v${GITALY_SERVER_VERSION}..."
     git clone -q -b v${GITALY_SERVER_VERSION} --depth 1 ${GITLAB_GITALY_URL} ${GITLAB_GITALY_BUILD_DIR}
-  fi
-
-  # --- 关键修复：ARM64 grpc gem 编译问题 ---
-  echo "INFO: Preparing ARM64-compatible grpc gem compilation..."
+  fi 
 
   # 设置编译环境变量，禁用会导致问题的警告
-  export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-  export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-
-  # 配置grpc使用系统库
   bundle config build.grpc --with-system-libraries
-  # 设置 GRPC 编译环境变量
-  export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
-
-  echo "INFO: Bundle install completed successfully for ARM64!"
-  # --- ARM64修复结束 ---
+  bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
 
   # install gitaly
-  # 使用 rvm exec 来确保 make 命令及其所有子进程都运行在正确的 Ruby 环境中
+  export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+  export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+  export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
   make -C ${GITLAB_GITALY_BUILD_DIR} install
+  
   mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
   cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
   cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
@@ -224,9 +216,6 @@ if ! [ -e /usr/local/bin/gitaly ]; then
 
   # clean up
   rm -rf ${GITLAB_GITALY_BUILD_DIR}
-
-  # remove go
-  rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
 
   # Fix for rebase in forks 
   echo "Linking $(command -v gitaly-ssh) to /"
@@ -248,9 +237,6 @@ exec_as_git git checkout HEAD -- Gemfile Gemfile.lock
 # --- 还原结束 ---
 
 # install gems, use local cache if available
-if [[ -d ${GEM_CACHE_DIR} ]]; then
-  mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
-fi
 chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor
 chown -R ${GITLAB_USER}: /usr/local/bundle/config
 
@@ -262,47 +248,21 @@ chown -R ${GITLAB_USER}: ${GITLAB_HOME}
 # --- 精确修复关键 gems：grpc、rugged、gpgme ---
 echo "INFO: Setting up bundle configuration for ARM64 compatibility..."
 
-# 设置编译环境变量，针对ARM64优化
-export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-
 # 1. 修复 grpc gem - 使用系统库避免编译问题
 echo "INFO: Configuring grpc gem for ARM64..."
-bundle config build.grpc --with-system-libraries
-export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
-
-# 2. 修复 rugged gem - 让它使用内置的libgit2版本，避免与系统libgit2冲突
-echo "INFO: Configuring rugged gem to use bundled libgit2..."
-# 确保 rugged 不使用系统库，让它使用内置的兼容 libgit2 版本
-bundle config build.rugged --no-use-system-libraries
+exec_as_git bundle config build.grpc --with-system-libraries
 
 # 3. 修复 gpgme gem - 使用系统库
 echo "INFO: Configuring gpgme gem for system libraries..."
-bundle config build.gpgme --use-system-libraries
+exec_as_git bundle config build.gpgme --use-system-libraries
 
 # 4. 强制使用Ruby平台版本，避免预编译二进制版本的兼容性问题
-bundle config --local force_ruby_platform true
+exec_as_git bundle config --local force_ruby_platform true
+
+exec_as_git bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
 
 # 预先安装关键的问题 gems，使用 Gemfile.lock 中的确切版本
 echo "INFO: Pre-installing problematic gems with exact versions from Gemfile.lock..."
-
-# 预先安装 grpc 1.19.0
-echo "INFO: Pre-installing grpc 1.19.0..."
-gem install grpc -v '1.19.0' --no-document || {
-    echo "WARNING: Failed to pre-install grpc, will let bundle install handle it"
-}
-
-# 预先安装 rugged 0.99.0 - 不使用系统库
-echo "INFO: Pre-installing rugged 0.99.0 with bundled libgit2..."
-gem install rugged -v '0.99.0' --no-document -- --no-use-system-libraries || {
-    echo "WARNING: Failed to pre-install rugged, will let bundle install handle it"
-}
-
-# 预先安装 gpgme 2.0.20
-echo "INFO: Pre-installing gpgme 2.0.20..."
-gem install gpgme -v '2.0.20' --no-document || {
-    echo "WARNING: Failed to pre-install gpgme, will let bundle install handle it"
-}
 
 # 修复 mimemagic 问题 - 使用一个兼容的版本
 if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
@@ -310,69 +270,24 @@ if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
   # 使用 mimemagic 0.3.10，这个版本比较稳定且不需要额外依赖
   sed -i "s/gem 'mimemagic'.*/gem 'mimemagic', '~> 0.3.10'/" Gemfile
   # 更新 Gemfile.lock
+  exec_as_git bundle config --local path vendor/bundle
   exec_as_git bundle config --delete deployment
   exec_as_git bundle config --delete frozen
-  exec_as_git bundle update mimemagic --conservative
+  exec_as_git bash -l -c '
+    export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error" && \
+    export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error" && \
+    export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true && \
+    bundle update mimemagic --conservative
+  '
 fi
-
-# 修复版本不匹配问题
-echo "INFO: Fixing version mismatches in Gemfile.lock..."
-sed -i 's/rugged (0.28.1)/rugged (0.99.0)/' Gemfile.lock || true
-sed -i 's/gpgme (2.0.18)/gpgme (2.0.20)/' Gemfile.lock || true
 
 # 尝试 bundle install，使用 --full-index 来解决依赖问题
-echo "INFO: Running bundle install with full index..."
-if ! bundle install --path vendor/bundle --without development test aws --full-index; then
-    echo "WARNING: Bundle install with full-index failed, trying update approach..."
-    
-    # 尝试更新有问题的 gems
-    echo "INFO: Updating problematic gems..."
-    bundle update mimemagic --conservative || true
-    
-    # 再次尝试安装
-    if ! bundle install --path vendor/bundle --without development test aws; then
-        echo "WARNING: Still failing, trying complete dependency resolution..."
-        
-        # 最后的方案：重新生成 Gemfile.lock
-        echo "INFO: Regenerating Gemfile.lock for ARM64 compatibility..."
-        rm -f Gemfile.lock
-        
-        # 使用预安装的 gems 重新生成 lock 文件
-        if bundle install --without development test aws; then
-            echo "INFO: Successfully regenerated Gemfile.lock"
-        else
-            echo "ERROR: Complete bundle install failure"
-            exit 1
-        fi
-    fi
-fi
+exec_as_git bundle install -j"$(nproc)" --local --without development test aws
 
 echo "INFO: Bundle install completed successfully"
 
-# 确保安装的gems目录属于git用户
-chown -R ${GITLAB_USER}: vendor/bundle || true
-if [ -d ".bundle" ]; then
-    chown -R ${GITLAB_USER}: .bundle || true
-fi
-
-# 确保git用户的bundle配置正确
-echo "INFO: Setting up bundle configuration for git user..."
-exec_as_git bundle config --local path vendor/bundle
-exec_as_git bundle config --local without 'development test aws'
-exec_as_git bundle config build.grpc --with-system-libraries
-exec_as_git bundle config build.rugged --no-use-system-libraries
-exec_as_git bundle config build.gpgme --use-system-libraries
-exec_as_git bundle config --local force_ruby_platform true
-
-echo "INFO: Bundle install completed successfully with preserved Gemfile.lock"
-# --- 修复结束 ---
-
-# install gems, use local cache if available (only if not already processed)
-if [[ -d ${GEM_CACHE_DIR} && ! -d ${GITLAB_INSTALL_DIR}/vendor/cache ]]; then
-  echo "INFO: Using local gem cache..."
-  mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
-  chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor/cache
-fi
+# make sure everything in ${GITLAB_HOME} is owned by ${GITLAB_USER} user
+chown -R ${GITLAB_USER}: ${GITLAB_HOME}
 
 # gitlab.yml and database.yml are required for `assets:precompile`
 exec_as_git cp ${GITLAB_INSTALL_DIR}/config/resque.yml.example ${GITLAB_INSTALL_DIR}/config/resque.yml
@@ -385,6 +300,7 @@ exec_as_git yarn add ajv@^4.0.0
 
 echo "Compiling assets. Please be patient, this could take a while..."
 exec_as_git bundle exec rake gitlab:assets:compile USE_DB=false SKIP_STORAGE_VALIDATION=true NODE_OPTIONS="--max-old-space-size=4096"
+rm -rf ${GITLAB_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
 
 echo "INFO: Assets compilation completed successfully"
 # --- 修复结束 ---

@@ -20,7 +20,8 @@ docker buildx build \
   --build-arg TARGET_ARCH=amd64 \
   --tag registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64 \
   -f .beagle/arch.Dockerfile \
-  --load .
+  --load . && \
+docker push registry.cn-qingdao.aliyuncs.com/wod/gitlab:v11.11.3-amd64
 
 # arm64
 docker buildx build \

@@ -110,9 +110,6 @@ exec_as_git git checkout HEAD -- Gemfile Gemfile.lock
 # --- 还原结束 ---
 
 # install gems, use local cache if available
-if [[ -d ${GEM_CACHE_DIR} ]]; then
-  mv ${GEM_CACHE_DIR} ${GITLAB_INSTALL_DIR}/vendor/cache
-fi
 chown -R ${GITLAB_USER}: ${GITLAB_INSTALL_DIR}/vendor
 chown -R ${GITLAB_USER}: /usr/local/bundle/config
 
@@ -135,6 +132,8 @@ exec_as_git bundle config build.gpgme --use-system-libraries
 # 4. 强制使用Ruby平台版本，避免预编译二进制版本的兼容性问题
 exec_as_git bundle config --local force_ruby_platform true
 
+exec_as_git bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
+
 # 预先安装关键的问题 gems，使用 Gemfile.lock 中的确切版本
 echo "INFO: Pre-installing problematic gems with exact versions from Gemfile.lock..."
 
@@ -144,7 +143,7 @@ if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
   # 使用 mimemagic 0.3.10，这个版本比较稳定且不需要额外依赖
   sed -i "s/gem 'mimemagic'.*/gem 'mimemagic', '~> 0.3.10'/" Gemfile
   # 更新 Gemfile.lock
-  exec_as_git bundle config --local path ${GITLAB_INSTALL_DIR}/vendor/cache
+  exec_as_git bundle config --local path vendor/bundle
   exec_as_git bundle config --delete deployment
   exec_as_git bundle config --delete frozen
   exec_as_git bash -l -c '
@@ -156,7 +155,7 @@ if grep -q "gem 'mimemagic', '~> 0.3.2'" Gemfile; then
 fi
 
 # 尝试 bundle install，使用 --full-index 来解决依赖问题
-exec_as_git bundle install -j"$(nproc)" --without development test aws
+exec_as_git bundle install -j"$(nproc)" --local --without development test aws
 
 echo "INFO: Bundle install completed successfully"
 
@@ -174,6 +173,7 @@ exec_as_git yarn add ajv@^4.0.0
 
 echo "Compiling assets. Please be patient, this could take a while..."
 exec_as_git bundle exec rake gitlab:assets:compile USE_DB=false SKIP_STORAGE_VALIDATION=true NODE_OPTIONS="--max-old-space-size=4096"
+rm -rf ${GITLAB_INSTALL_DIR}/ruby/vendor/bundle/ruby/**/cache
 
 echo "INFO: Assets compilation completed successfully"
 # --- 修复结束 ---

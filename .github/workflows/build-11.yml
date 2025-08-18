@@ -33,7 +33,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./.beagle/arch.Dockerfile
+          file: ./.beagle/Dockerfile
           platforms: linux/amd64
           push: true
           provenance: false
@@ -45,21 +45,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push ARM64 image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./.beagle/arch.Dockerfile
-          platforms: linux/arm64
-          push: true
-          provenance: false
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-arm64
-          build-args: |
-            BASE=ruby:2.5.8
-            TARGET_ARCH=arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # - name: Build and push ARM64 image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: ./.beagle/Dockerfile
+      #     platforms: linux/arm64
+      #     push: true
+      #     provenance: false
+      #     tags: |
+      #       ${{ env.IMAGE_NAME }}:${{ env.BUILD_VERSION }}-arm64
+      #     build-args: |
+      #       BASE=ruby:2.5.8
+      #       TARGET_ARCH=arm64
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
 
       - name: Create and push manifest list
         run: |

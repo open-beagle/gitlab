@@ -1,4 +1,4 @@
-ARG BASE=ubuntu:20.04
+ARG BASE=ruby:2.5.8
 
 FROM ${BASE}
 
@@ -27,51 +27,12 @@ ENV GITLAB_INSTALL_DIR="${GITLAB_HOME}/gitlab" \
     GITLAB_BUILD_DIR="${GITLAB_CACHE_DIR}/build" \
     GITLAB_RUNTIME_DIR="${GITLAB_CACHE_DIR}/runtime"
 
-# --- 构建依赖安装 ---
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive \
-    apt-get install --no-install-recommends -y \
-        # 基础工具
-        wget curl gnupg2 ca-certificates apt-transport-https software-properties-common \
-        # 核心依赖
-        sudo supervisor logrotate locales curl \
-        openssh-server mysql-client postgresql-client redis-tools \
-        # rake运行时依赖
-        libgpgme11 libmysqlclient21 \
-        # 编译工具
-        build-essential git python2.7 && \
-    #
-    # --- 添加软件源 (使用现代化的 gpg 方式) ---
-    #
-    # Git (来自 PPA)
-    add-apt-repository -y ppa:git-core/ppa && \
-    # Nginx (来自 PPA)
-    add-apt-repository -y ppa:nginx/stable && \
-    # PostgreSQL
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    echo 'deb http://apt-archive.postgresql.org/pub/repos/apt/ focal-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
-    wget --quiet -O - https://dl.yarnpkg.com/debian/pubkey.gpg  | apt-key add -  && \
-    echo 'deb https://dl.yarnpkg.com/debian/ stable main' > /etc/apt/sources.list.d/yarn.list && \
-    #
-    # --- 安装构建时依赖 ---
-    #
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        # Git
-        git-core gnupg2 \
-        # Nginx
-        nginx \
-        # Yarn
-        yarn gettext-base \
-        # 其他编译 GitLab 所需的开发库
-        shared-mime-info \
-        gawk bison libtool sqlite3 && \
-    # --- 清理 ---
-    #
-    rm -rf /var/lib/apt/lists/* /tmp/*
+COPY .beagle/base.sh ${GITLAB_BUILD_DIR}/base.sh
+RUN bash ${GITLAB_BUILD_DIR}/base.sh
 
-COPY assets/build/ ${GITLAB_BUILD_DIR}/
-COPY .beagle/install.sh ${GITLAB_BUILD_DIR}/install.sh
+ARG TARGET_ARCH=amd64
+
+COPY .beagle/install_${TARGET_ARCH}.sh ${GITLAB_BUILD_DIR}/install.sh
 RUN bash ${GITLAB_BUILD_DIR}/install.sh
 
 COPY assets/runtime/ ${GITLAB_RUNTIME_DIR}/

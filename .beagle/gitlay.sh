@@ -115,14 +115,15 @@ if ! [ -e /usr/local/bin/gitaly ]; then
   fi 
 
   # 设置编译环境变量，禁用会导致问题的警告
-  export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
-  export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
   bundle config build.grpc --with-system-libraries
-  bundle config --local path ${GEM_CACHE_DIR}
-  export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
+  bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
 
   # install gitaly
+  export CFLAGS="${CFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+  export CXXFLAGS="${CXXFLAGS} -Wno-error=stringop-overflow -Wno-error=sizeof-pointer-memaccess -Wno-error"
+  export GRPC_RUBY_COMPILE_PLATFORM_ONLY=true
   make -C ${GITLAB_GITALY_BUILD_DIR} install
+  
   mkdir -p ${GITLAB_GITALY_INSTALL_DIR}
   cp -a ${GITLAB_GITALY_BUILD_DIR}/ruby ${GITLAB_GITALY_INSTALL_DIR}/
   cp -a ${GITLAB_GITALY_BUILD_DIR}/config.toml.example ${GITLAB_GITALY_INSTALL_DIR}/config.toml
@@ -130,9 +131,6 @@ if ! [ -e /usr/local/bin/gitaly ]; then
 
   # clean up
   rm -rf ${GITLAB_GITALY_BUILD_DIR}
-
-  # remove go
-  rm -rf ${GITLAB_BUILD_DIR}/go${GOLANG_VERSION}.linux-${GO_ARCH}.tar.gz ${GOROOT}
 
   # Fix for rebase in forks 
   echo "Linking $(command -v gitaly-ssh) to /"
